@@ -36,35 +36,6 @@ function! DisplayChatGPTResponse(response)
   wincmd p
 endfunction
 
-" Function to send selected code to ChatGPT for explanation or review
-function! SendHighlightedCodeToChatGPT(ask)
-  " Save the current yank register
-  let save_reg = @@
-  let save_regtype = getregtype('@')
-
-  " Yank the selected text into the unnamed register
-  normal! `<v`>y
-
-  " Replace newline characters in the yanked text with a space
-  let yanked_text = @@
-
-  " Set the prompt based on the 'ask' argument
-  let prompt = 'I have the following code snippet, can you explain it?\n' . yanked_text
-
-  if a:ask == 'rewrite'
-    let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?\n' . yanked_text
-  elseif a:ask == 'review'
-    let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
-  endif
-
-  " Call ChatGPT with the prompt
-  call ChatGPT(prompt)
-
-  " Restore the original yank register
-  let @@ = save_reg
-  call setreg('@', save_reg, save_regtype)
-endfunction
-
 " Function to show ChatGPT responses in a new buffer (improved)
 function! DisplayChatGPTResponse(response)
   new
@@ -83,7 +54,7 @@ def chat_gpt(prompt):
     response = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
       messages=[{"role": "user", "content": prompt}],
-      max_tokens=100,
+      max_tokens=200,
       stop=None,
       temperature=0.7,
     )
@@ -98,8 +69,32 @@ EOF
   call DisplayChatGPTResponse(g:result)
 endfunction
 
+function! SendHighlightedCodeToChatGPT(ask, line1, line2)
+  " Save the current yank register
+  let save_reg = @@
+  let save_regtype = getregtype('@')
+
+  " Yank the lines between line1 and line2 into the unnamed register
+  execute 'normal! ' . a:line1 . 'G0v' . a:line2 . 'G$y'
+
+  " Send the yanked text to ChatGPT
+  let yanked_text = @@
+  let prompt = 'I have the following code snippet, can you explain it?\n' . yanked_text
+
+  if a:ask == 'rewrite'
+    let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?\n' . yanked_text
+  elseif a:ask == 'review'
+    let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
+  endif
+  call ChatGPT(prompt)
+
+  " Restore the original yank register
+  let @@ = save_reg
+  call setreg('@', save_reg, save_regtype)
+endfunction
+"
 " Commands to interact with ChatGPT
 command! -nargs=1 Ask call ChatGPT(<q-args>)
-command! -range Explain execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('explain')
-command! -range Rewrite execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('rewrite')
-command! -range Review execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('review')
+command! -range Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>)
+command! -range Rewrite SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>)
+command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>)
