@@ -88,9 +88,35 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
 endfunction
+
+
+function! GenerateCommit()
+  " Save the current position and yank register
+  let save_cursor = getcurpos()
+  let save_reg = @@
+  let save_regtype = getregtype('@')
+
+  " Yank the entire buffer into the unnamed register
+  normal! ggVGy
+
+  " Send the yanked text to ChatGPT
+  let yanked_text = @@
+  let prompt = 'I have the following code changes, can you write a commit message?\n' . yanked_text
+  let response = ChatGPT(prompt)
+
+  " Go to the beginning of the buffer and paste the response
+  normal! ggP
+
+  " Restore the original yank register and position
+  let @@ = save_reg
+  call setreg('@', save_reg, save_regtype)
+  call setpos('.', save_cursor)
+endfunction
+
 "
 " Commands to interact with ChatGPT
 command! -nargs=1 Ask call ChatGPT(<q-args>)
 command! -range Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, '')
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
+command! GenerateCommit call GenerateCommit()
