@@ -24,19 +24,19 @@ pip install openai
 
 The plugin offers the following commands for interacting with ChatGPT:
 
-1) :Ask <prompt>: Sends your raw prompt to the ChatGPT API.
+1) `:Ask '<prompt>'` Sends your raw prompt to the ChatGPT API.
 
 To use this command, type :Ask followed by your prompt.
 
-2) :Explain: Sends the highlighted code to ChatGPT and requests an explanation.
-2) :Review: Sends the highlighted code to ChatGPT and requests a review.
+2) `:Explain` Sends the highlighted code to ChatGPT and requests an explanation.
+2) `:Review` Sends the highlighted code to ChatGPT and requests a review.
 
 To use these commands (:Explain, :Review, or :Rewrite), visually select the lines of code you want to interact with, then type the desired command and press Enter.
 
-4) :GenerateCommit: Sends entire buffer to ChatGPT and requests a commit messages be generated, then pastes it at the top of the buffer
+4) `:GenerateCommit` Sends entire buffer to ChatGPT and requests a commit messages be generated, then pastes it at the top of the buffer
 To use this command type `git commit -v`  then `:GenerateCommit`
 
-5) :Rewrite: Sends the highlighted code to ChatGPT and requests a rewritten version,. with the option to include additional context.
+5) `:Rewrite` Sends the highlighted code to ChatGPT and requests a rewritten version,. with the option to include additional context.
 
 To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
 
