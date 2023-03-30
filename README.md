@@ -1,45 +1,44 @@
 # ChatGPT Vim Plugin
 
-This Vim plugin integrates OpenAI's ChatGPT API into your Vim editor, allowing you to get explanations or suggestions for code improvements directly within Vim. With this plugin, you can easily highlight code snippets and ask ChatGPT to explain or rewrite them.
+This Vim plugin brings the power of OpenAI's ChatGPT API into your Vim editor, enabling you to request code explanations or improvements directly within Vim. With this plugin, you can effortlessly highlight code snippets and ask ChatGPT to explain, review, or rewrite them, with the option to include additional context for better results.
 
 ## Prerequisites
 
-
 1) Vim with Python3 support.
 1) A ChatGPT API key from OpenAI.
+
 ## Installation
-1) Add  your API to your enviorment
-
+Add your ChatGPT API key to your environment:
+```arduino
+export CHAT_GPT_KEY='your-api-key-here'
 ```
-export CHAT_GPT_KEY='sk-asdjklfdsajkladfsjkladfsjkladfsjkl'
-```
 
-2) Copy the chatgpt.vim file into your Vim plugin directory (usually ~/.vim/plugin/ or $HOME/vimfiles/plugin/ on Windows). Or use https://github.com/tpope/vim-pathoge
+Copy the chatgpt.vim file into your Vim plugin directory (usually ~/.vim/plugin/ or $HOME/vimfiles/plugin/ on Windows). Alternatively, use [vim-pathogen](https://github.com/tpope/vim-pathogen)
 
-2) Install the openai Python module using pip:
-``` bash
+Install the openai Python module using pip:
+```bash
 pip install openai
 ```
 
-
 ## Usage
-The plugin provides four commands for interacting with ChatGPT:
-1) Ask '\<prompt\>', sends your raw prompt to the ChatGPT API
 
-To use this commands, type :Ask then enter you prompt
+The plugin offers five commands for interacting with ChatGPT:
 
-2) :Explain: Sends the highlighted code to ChatGPT and asks for an explanation.
-2) :Review: Sends the highlighted code to ChatGPT and asks for a review of it.
-2) :Rewrite: Sends the highlighted code to ChatGPT and asks for a rewritten version.
+1) :Ask <prompt>: Sends your raw prompt to the ChatGPT API.
+To use this command, type :Ask followed by your prompt.
+2) :Extend: Sends the highlighted code to ChatGPT and requests a rewritten version, with the option to include additional context.
+To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
+3) :Explain: Sends the highlighted code to ChatGPT and requests an explanation.
+3) :Review: Sends the highlighted code to ChatGPT and requests a review.
+3) :Rewrite: Sends the highlighted code to ChatGPT and requests a rewritten version.
+To use these commands (:Explain, :Review, or :Rewrite), visually select the lines of code you want to interact with, then type the desired command and press Enter.
 
-To use these commands, visually select the lines of code you want to interact with, then type :Explain or :Review. The ChatGPT response will be displayed in a new buffer.
-
+The ChatGPT response will be displayed in a new buffer.
 
 ### Example usage:
-
 1) Enter visual mode by pressing V.
-1) Select the lines of code you want to explain or rewrite.
-1) Type :Explain or :Review and press Enter.
+1) Select the lines of code you want to explain, review, or rewrite.
+1) Type :Explain, :Review, or :Rewrite and press Enter.
 
 ## Notes
-This plugin is not affiliated with or endorsed by OpenAI. You are responsible for managing your API usage, and any associated costs, when using this plugin.
+This plugin is not affiliated with or endorsed by OpenAI. You are responsible for managing your API usage and any associated costs when using this plugin.

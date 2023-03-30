@@ -23,7 +23,6 @@ EOF
 " Set API key
 python3 << EOF
 openai.api_key = os.getenv('CHAT_GPT_KEY')
-
 EOF
 
 "
@@ -54,7 +53,7 @@ def chat_gpt(prompt):
     response = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
       messages=[{"role": "user", "content": prompt}],
-      max_tokens=200,
+      max_tokens=1000,
       stop=None,
       temperature=0.7,
     )
@@ -69,7 +68,7 @@ EOF
   call DisplayChatGPTResponse(g:result)
 endfunction
 
-function! SendHighlightedCodeToChatGPT(ask, line1, line2)
+function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   " Save the current yank register
   let save_reg = @@
   let save_regtype = getregtype('@')
@@ -85,6 +84,8 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2)
     let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?\n' . yanked_text
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
+  elseif a:ask == 'extend'
+    let prompt = 'I have the following code snippet, can you rewrite to' . a:context . '?\n' . yanked_text
   endif
   call ChatGPT(prompt)
 
@@ -95,6 +96,7 @@ endfunction
 "
 " Commands to interact with ChatGPT
 command! -nargs=1 Ask call ChatGPT(<q-args>)
-command! -range Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>)
-command! -range Rewrite SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>)
-command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>)
+command! -range Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, '')
+command! -range Rewrite SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, '')
+command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
+command! -range -nargs=? Extend call SendHighlightedCodeToChatGPT('extend', <line1>, <line2>, <q-args>)
