@@ -46,14 +46,18 @@ function! SendHighlightedCodeToChatGPT(ask)
   normal! `<v`>y
 
   " Replace newline characters in the yanked text with a space
-  let yanked_text = substitute(@@, '\n', ' ', 'g')
+  let yanked_text = @@
 
   " Set the prompt based on the 'ask' argument
   let prompt = 'I have the following code snippet, can you explain it?\n' . yanked_text
-  if a:ask == 'review'
-    let prompt = 'I have the following code snippet, can you rewrite it?\n' . yanked_text
+
+  if a:ask == 'rewrite'
+    let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?\n' . yanked_text
+  elseif a:ask == 'review'
+    let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
   endif
 
+  echo prompt
   " Call ChatGPT with the prompt
   call ChatGPT(prompt)
 
@@ -98,4 +102,5 @@ endfunction
 " Commands to interact with ChatGPT
 command! -nargs=1 Ask call ChatGPT(<q-args>)
 command! -range Explain execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('explain')
-command! -range Review execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('explain')
+command! -range Rewrite execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('rewrite')
+command! -range Review execute <line1> . ',' . <line2> . 'normal! V' | call SendHighlightedCodeToChatGPT('review')
