@@ -34,10 +34,7 @@ To use this command, type :Ask followed by your prompt.
 To use these commands (:Explain, :Review, or :Rewrite), visually select the lines of code you want to interact with, then type the desired command and press Enter.
 
 4) :GenerateCommit: Sends entire buffer ChatGPT and requests commit messages be generated and pastes it at the top of the buffer
-### Example usage:
-1) git commit -v
-1) type :GenerateCommit
-
+To use this command type git commit -v  then :GenerateCommit
 
 5) :Rewrite: Sends the highlighted code to ChatGPT and requests a rewritten version,. with the option to include additional context.
 
