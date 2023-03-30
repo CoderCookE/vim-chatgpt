@@ -100,7 +100,7 @@ function! GenerateCommitMessage()
 
   " Send the yanked text to ChatGPT
   let yanked_text = @@
-  let prompt = 'I have the following code changes, can you write a commit message?\n' . yanked_text
+  let prompt = 'I have the following code changes, can you write a commit message, including a title?\n' . yanked_text
   call ChatGPT(prompt)
 
   " Save the current buffer
