@@ -59,7 +59,6 @@ def chat_gpt(prompt):
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
-  call DisplayChatGPTResponse(g:result)
 endfunction
 
 function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
@@ -84,13 +83,13 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   endif
   call ChatGPT(prompt)
 
+  call DisplayChatGPTResponse(g:result)
   " Restore the original yank register
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
 endfunction
 
-
-function! GenerateCommit()
+function! GenerateCommitMessage()
   " Save the current position and yank register
   let save_cursor = getcurpos()
   let save_reg = @@
@@ -102,21 +101,27 @@ function! GenerateCommit()
   " Send the yanked text to ChatGPT
   let yanked_text = @@
   let prompt = 'I have the following code changes, can you write a commit message?\n' . yanked_text
-  let response = ChatGPT(prompt)
+  call ChatGPT(prompt)
 
-  " Go to the beginning of the buffer and paste the response
-  normal! ggP
+  " Save the current buffer
+  silent! write
+
+  " Insert the response into the new buffer
+  call setline(1, split(g:result, '\n'))
+  setlocal modifiable
+
+  " Go back to the original buffer
+  wincmd p
 
   " Restore the original yank register and position
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
   call setpos('.', save_cursor)
 endfunction
-
 "
 " Commands to interact with ChatGPT
 command! -nargs=1 Ask call ChatGPT(<q-args>)
 command! -range Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, '')
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
-command! GenerateCommit call GenerateCommit()
+command! GenerateCommit call GenerateCommitMessage()
