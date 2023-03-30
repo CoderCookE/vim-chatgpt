@@ -82,10 +82,11 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
 
   if a:ask == 'rewrite'
     let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?\n' . yanked_text
+    if len(a:context) > 0
+      let prompt = 'I have the following code snippet, can you rewrite to' . a:context . '?\n' . yanked_text
+    endif
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
-  elseif a:ask == 'extend'
-    let prompt = 'I have the following code snippet, can you rewrite to' . a:context . '?\n' . yanked_text
   endif
   call ChatGPT(prompt)
 
@@ -97,6 +98,5 @@ endfunction
 " Commands to interact with ChatGPT
 command! -nargs=1 Ask call ChatGPT(<q-args>)
 command! -range Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, '')
-command! -range Rewrite SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, '')
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
-command! -range -nargs=? Extend call SendHighlightedCodeToChatGPT('extend', <line1>, <line2>, <q-args>)
+command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
