@@ -57,7 +57,6 @@ function! SendHighlightedCodeToChatGPT(ask)
     let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
   endif
 
-  echo prompt
   " Call ChatGPT with the prompt
   call ChatGPT(prompt)
 
