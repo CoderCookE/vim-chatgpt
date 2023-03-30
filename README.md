@@ -33,8 +33,8 @@ To use this command, type :Ask followed by your prompt.
 
 To use these commands (:Explain, :Review, or :Rewrite), visually select the lines of code you want to interact with, then type the desired command and press Enter.
 
-4) :GenerateCommit: Sends entire buffer ChatGPT and requests commit messages be generated and pastes it at the top of the buffer
-To use this command type git commit -v  then :GenerateCommit
+4) :GenerateCommit: Sends entire buffer to ChatGPT and requests a commit messages be generated, then pastes it at the top of the buffer
+To use this command type `git commit -v`  then `:GenerateCommit`
 
 5) :Rewrite: Sends the highlighted code to ChatGPT and requests a rewritten version,. with the option to include additional context.
 
@@ -45,7 +45,7 @@ The ChatGPT response will be displayed in a new buffer.
 ### Example usage:
 1) Enter visual mode by pressing V.
 1) Select the lines of code you want to explain, review, or rewrite.
-1) Type :Explain, :Review, or :Rewrite and press Enter.
+1) Type `:Explain`, `:Review`, or `:Rewrite` and press Enter.
 
 ## Notes
 This plugin is not affiliated with or endorsed by OpenAI. You are responsible for managing your API usage and any associated costs when using this plugin.
