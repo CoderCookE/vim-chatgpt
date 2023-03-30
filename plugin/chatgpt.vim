@@ -25,21 +25,15 @@ python3 << EOF
 openai.api_key = os.getenv('CHAT_GPT_KEY')
 EOF
 
-"
-" Function to show ChatGPT responses in a new buffer
-function! DisplayChatGPTResponse(response)
-  new
-  setlocal buftype=nofile bufhidden=hide noswapfile nowrap nomodifiable nobuflisted
-  call setline(1, split(a:response, '\n'))
-  file ChatGPT Response
-  wincmd p
-endfunction
-
 " Function to show ChatGPT responses in a new buffer (improved)
 function! DisplayChatGPTResponse(response)
+  let original_syntax = &syntax
+
   new
   setlocal buftype=nofile bufhidden=hide noswapfile nowrap nobuflisted
   setlocal modifiable
+  execute 'setlocal syntax='. original_syntax
+
   call setline(1, split(a:response, '\n'))
   setlocal nomodifiable
   wincmd p
