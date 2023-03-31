@@ -28,15 +28,15 @@ The plugin offers the following commands for interacting with ChatGPT:
 
 To use this command, type :Ask followed by your prompt.
 
-2) `:Explain` Sends the highlighted code to ChatGPT and requests an explanation.
-2) `:Review` Sends the highlighted code to ChatGPT and requests a review.
+2) `:<>Review` Sends the highlighted code to ChatGPT and requests a review.
 
 To use these commands (:Explain, :Review, or :Rewrite), visually select the lines of code you want to interact with, then type the desired command and press Enter.
 
 4) `:GenerateCommit` Sends entire buffer to ChatGPT and requests a commit messages be generated, then pastes it at the top of the buffer
 To use this command type `git commit -v`  then `:GenerateCommit`
 
-5) `:Rewrite` Sends the highlighted code to ChatGPT and requests a rewritten version,. with the option to include additional context.
+5) `:<>Explain '<context>'` Sends the highlighted code to ChatGPT and requests an explanation, with the option to include additional context.
+5) `:<>Rewrite '<context>'` Sends the highlighted code to ChatGPT and requests a rewritten version, with the option to include additional context.
 
 To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
 
