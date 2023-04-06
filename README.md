@@ -9,6 +9,8 @@ This Vim plugin brings the power of OpenAI's ChatGPT API into your Vim editor, e
 
 ## Installation
 Add your ChatGPT API key to your environment:
+https://platform.openai.com/account/api-keys
+
 ```arduino
 export CHAT_GPT_KEY='your-api-key-here'
 ```
