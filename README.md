@@ -16,7 +16,7 @@ https://platform.openai.com/account/api-keys
 export CHAT_GPT_KEY='your-api-key-here'
 ```
 
-Alternatively in you `.vimrc
+Alternatively in your `.vimrc`
 ```
 " chatgpt setup
 let g:chat_gpt_key='your-api-key-here'
