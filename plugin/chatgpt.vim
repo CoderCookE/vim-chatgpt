@@ -21,7 +21,7 @@ EOF
 
 " Set API key
 python3 << EOF
-openai.api_key = os.getenv('CHAT_GPT_KEY')
+openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
 EOF
 
 " Function to show ChatGPT responses in a new buffer (improved)
@@ -41,12 +41,13 @@ endfunction
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
   python3 << EOF
+max_tokens = int(vim.eval('g:chat_gpt_max_tokens')) or 2000
 def chat_gpt(prompt):
   try:
     response = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
       messages=[{"role": "user", "content": prompt}],
-      max_tokens=1000,
+      max_tokens=max_tokens,
       stop=None,
       temperature=0.7,
     )
