@@ -24,7 +24,7 @@ python3 << EOF
 openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
 EOF
 
-" Function to show ChatGPT responses in a new buffer (improved)
+" Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response)
   let original_syntax = &syntax
 
@@ -110,6 +110,18 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   call setreg('@', save_reg, save_regtype)
 endfunction
 
+function! AskChatGPT(prompt)
+  " Save the current yank register
+  let save_reg = @@
+  let save_regtype = getregtype('@')
+
+  call ChatGPT(a:prompt)
+  call DisplayChatGPTResponse(g:result)
+
+  let @@ = save_reg
+  call setreg('@', save_reg, save_regtype)
+endfunction
+
 function! GenerateCommitMessage()
   " Save the current position and yank register
   let save_cursor = getcurpos()
@@ -141,7 +153,7 @@ function! GenerateCommitMessage()
 endfunction
 "
 " Commands to interact with ChatGPT
-command! -nargs=1 Ask call ChatGPT(<q-args>)
+command! -nargs=1 Ask call AskChatGPT(<q-args>)
 command! -range  -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, <q-args>)
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
