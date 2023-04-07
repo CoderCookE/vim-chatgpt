@@ -17,6 +17,11 @@ except ImportError:
     raise
 import vim
 import os
+
+try:
+    vim.eval('g:chat_gpt_max_tokens')
+except:
+    vim.command('let g:chat_gpt_max_tokens=2000')
 EOF
 
 " Set API key
@@ -41,11 +46,10 @@ endfunction
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
   python3 << EOF
-max_tokens = 2000
-if 'g:chat_gpt_max_tokens' in globals():
-    max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
 
 def chat_gpt(prompt):
+  max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
+
   try:
     response = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
