@@ -41,7 +41,10 @@ endfunction
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
   python3 << EOF
-max_tokens = int(vim.eval('g:chat_gpt_max_tokens')) or 2000
+max_tokens = 2000
+if 'g:chat_gpt_max_tokens' in globals():
+    max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
+
 def chat_gpt(prompt):
   try:
     response = openai.ChatCompletion.create(
