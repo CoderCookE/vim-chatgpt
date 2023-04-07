@@ -47,6 +47,7 @@ To use this command type `git commit -v`  then `:GenerateCommit`
 5) `:<>Explain '<context>'` Sends the highlighted code to ChatGPT and requests an explanation, with the option to include additional context.
 5) `:<>Rewrite '<context>'` Sends the highlighted code to ChatGPT and requests a rewritten version, with the option to include additional context.
 5) `:<>Test '<context>'` Sends the highlighted code to ChatGPT and requests it writes a test, with the option to include additional context.
+5) `:<>Fix '<context>'` Sends the highlighted code to ChatGPT and that it fixes any errors it may find, with the option to include additional context.
 
 To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
 
@@ -55,7 +56,7 @@ The ChatGPT response will be displayed in a new buffer.
 ### Example usage:
 1) Enter visual mode by pressing V.
 1) Select the lines of code you want to explain, review, or rewrite.
-1) Type `:Explain`, `:Review`, or `:Rewrite` and press Enter.
+1) Type `:Explain`, `:Review`, or `:Rewrite`, `:Fix`, `:Test` and press Enter.
 
 ## Notes
 This plugin is not affiliated with or endorsed by OpenAI. You are responsible for managing your API usage and any associated costs when using this plugin.
