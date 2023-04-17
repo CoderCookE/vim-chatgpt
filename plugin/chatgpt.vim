@@ -13,8 +13,8 @@ import sys
 try:
     import openai
 except ImportError:
-    print("Error: openai module not found. Install with pip.")
-    raise
+    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
+     raise
 import vim
 import os
 
