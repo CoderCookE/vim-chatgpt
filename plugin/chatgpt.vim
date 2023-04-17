@@ -10,18 +10,20 @@ endif
 " Add ChatGPT dependencies
 python3 << EOF
 import sys
+
 try:
-    import openai
+  import openai
 except ImportError:
-    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
-     raise
+  print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
+  raise
+
 import vim
 import os
 
 try:
-    vim.eval('g:chat_gpt_max_tokens')
+  vim.eval('g:chat_gpt_max_tokens')
 except:
-    vim.command('let g:chat_gpt_max_tokens=2000')
+  vim.command('let g:chat_gpt_max_tokens=2000')
 EOF
 
 " Set API key
