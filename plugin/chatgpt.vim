@@ -60,11 +60,11 @@ def chat_gpt(prompt):
       stop=None,
       temperature=0.7,
     )
-    result = response.choices[0].message.content.strip()
-    vim.command("let g:result = '{}'".format(result.replace("'", "''")))
+    gpt_result = response.choices[0].message.content.strip()
+    vim.command("let g:gpt_result = '{}'".format(gpt_result.replace("'", "''")))
   except Exception as e:
     print("Error:", str(e))
-    vim.command("let g:result = ''")
+    vim.command("let g:gpt_result = ''")
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
@@ -110,7 +110,7 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
 
   call ChatGPT(prompt)
 
-  call DisplayChatGPTResponse(g:result)
+  call DisplayChatGPTResponse(g:gpt_result)
   " Restore the original yank register
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
@@ -122,7 +122,7 @@ function! AskChatGPT(prompt)
   let save_regtype = getregtype('@')
 
   call ChatGPT(a:prompt)
-  call DisplayChatGPTResponse(g:result)
+  call DisplayChatGPTResponse(g:gpt_result)
 
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
@@ -146,7 +146,7 @@ function! GenerateCommitMessage()
   silent! write
 
   " Insert the response into the new buffer
-  call setline(1, split(g:result, '\n'))
+  call setline(1, split(g:gpt_result, '\n'))
   setlocal modifiable
 
   " Go back to the original buffer
