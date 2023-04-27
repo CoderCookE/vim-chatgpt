@@ -81,7 +81,7 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   " Send the yanked text to ChatGPT
   let yanked_text = @@
 
-  let prompt = 'Do you like my code?\n' . yanked_text
+  let prompt = a:context . ' ' . yanked_text
 
   if a:ask == 'rewrite'
     let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?\n' . yanked_text
@@ -105,25 +105,12 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
     if len(a:context) > 0
       let prompt = 'I have the following code snippet I would want you to fix, ' . a:context . ':\n' . yanked_text
     endif
-
   endif
 
   call ChatGPT(prompt)
 
   call DisplayChatGPTResponse(g:gpt_result)
   " Restore the original yank register
-  let @@ = save_reg
-  call setreg('@', save_reg, save_regtype)
-endfunction
-
-function! AskChatGPT(prompt)
-  " Save the current yank register
-  let save_reg = @@
-  let save_regtype = getregtype('@')
-
-  call ChatGPT(a:prompt)
-  call DisplayChatGPTResponse(g:gpt_result)
-
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
 endfunction
@@ -159,7 +146,7 @@ function! GenerateCommitMessage()
 endfunction
 "
 " Commands to interact with ChatGPT
-command! -nargs=1 Ask call AskChatGPT(<q-args>)
+command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask', <line1>, <line2>, <q-args>)
 command! -range  -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, <q-args>)
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
