@@ -31,31 +31,37 @@ openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
 EOF
 
 " Function to show ChatGPT responses in a new buffer
-function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
-  let original_syntax = &syntax
 
-  call setbufvar(a:chat_gpt_session_id, '&buftype', 'nofile')
-  call setbufvar(a:chat_gpt_session_id, '&bufhidden', 'hide')
-  call setbufvar(a:chat_gpt_session_id, '&swapfile', 0)
-  call setbufvar(a:chat_gpt_session_id, '&modifiable', 1)
-  call setbufvar(a:chat_gpt_session_id, '&wrap', 1)
-  call setbufvar(a:chat_gpt_session_id, '&syntax', original_syntax)
+function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   if !bufexists(a:chat_gpt_session_id)
+    let original_syntax = &syntax
+
     silent execute 'new '. a:chat_gpt_session_id
+    call setbufvar(a:chat_gpt_session_id, '&buftype', 'nofile')
+    call setbufvar(a:chat_gpt_session_id, '&bufhidden', 'hide')
+    call setbufvar(a:chat_gpt_session_id, '&swapfile', 0)
+    call setbufvar(a:chat_gpt_session_id, '&modifiable', 1)
+    call setbufvar(a:chat_gpt_session_id, '&wrap', 1)
+    call setbufvar(a:chat_gpt_session_id, '&syntax', original_syntax)
   endif
 
   if bufwinnr(a:chat_gpt_session_id) == -1
-    execute 'split ' .  a:chat_gpt_session_id
+    execute 'split ' . a:chat_gpt_session_id
   endif
 
-  " Get the last line content
-  let last_line = getbufline(a:chat_gpt_session_id, '$')[0]
+  let last_lines = getbufline(a:chat_gpt_session_id, '$')
+  let last_line = empty(last_lines) ? '' : last_lines[-1]
 
-  " Append the response to the last line content
-  let new_line = last_line . a:response
+  let new_lines = substitute(last_line . a:response, '\n', '\r\n\r', 'g')
 
-  " Update the last line with the new content
-  call setbufline(a:chat_gpt_session_id, '$', split(new_line, '\n'))
+  let parts = split(new_lines, '\n')
+
+  let clean_parts = []
+  for part in parts
+    call add(clean_parts, substitute(part, '\r', '', 'g'))
+  endfor
+
+  call setbufline(a:chat_gpt_session_id, '$', clean_parts)
 
   if a:finish_reason != ''
     call setbufvar(a:chat_gpt_session_id, '&modifiable', 0)
@@ -71,10 +77,12 @@ function! ChatGPT(prompt) abort
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
 
+  systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
+
   try:
     response = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
-      messages=[{"role": "user", "content": prompt}],
+      messages=[systemCtx, {"role": "user", "content": prompt}],
       max_tokens=max_tokens,
       stop=None,
       temperature=0.7,
