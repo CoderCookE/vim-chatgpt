@@ -9,21 +9,24 @@ endif
 " Add ChatGPT dependencies
 python3 << EOF
 import sys
-
-try:
-  import openai
-except ImportError:
-  print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
-  raise
-
 import vim
 import os
 
 try:
-  vim.eval('g:chat_gpt_max_tokens')
-except:
-  vim.command('let g:chat_gpt_max_tokens=2000')
+    import openai
+except ImportError:
+    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
+    raise
 EOF
+
+" Set default values for Vim variables if they don't exist
+if !exists("g:chat_gpt_max_tokens")
+  let g:chat_gpt_max_tokens = 2000
+endif
+
+if !exists("g:chat_gpt_model")
+  let g:chat_gpt_model = 'gpt-3.5-turbo'
+endif
 
 " Set API key
 python3 << EOF
@@ -79,12 +82,12 @@ function! ChatGPT(prompt) abort
 
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
-
+  model= str(vim.eval('g:chat_gpt_model'))
   systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
 
   try:
     response = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",
+      model=model,
       messages=[systemCtx, {"role": "user", "content": prompt}],
       max_tokens=max_tokens,
       stop=None,
