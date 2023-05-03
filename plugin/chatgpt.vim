@@ -31,45 +31,48 @@ openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
 EOF
 
 " Function to show ChatGPT responses in a new buffer
-
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
-  if !bufexists(a:chat_gpt_session_id)
+  let response = a:response
+  let finish_reason = a:finish_reason
+  let chat_gpt_session_id = a:chat_gpt_session_id
+
+  if !bufexists(chat_gpt_session_id)
     let original_syntax = &syntax
 
-    silent execute 'new '. a:chat_gpt_session_id
-    call setbufvar(a:chat_gpt_session_id, '&buftype', 'nofile')
-    call setbufvar(a:chat_gpt_session_id, '&bufhidden', 'hide')
-    call setbufvar(a:chat_gpt_session_id, '&swapfile', 0)
-    call setbufvar(a:chat_gpt_session_id, '&modifiable', 1)
-    call setbufvar(a:chat_gpt_session_id, '&wrap', 1)
-    call setbufvar(a:chat_gpt_session_id, '&syntax', original_syntax)
+    silent execute 'new '. chat_gpt_session_id
+    call setbufvar(chat_gpt_session_id, '&buftype', 'nofile')
+    call setbufvar(chat_gpt_session_id, '&bufhidden', 'hide')
+    call setbufvar(chat_gpt_session_id, '&swapfile', 0)
+    setlocal modifiable
+    setlocal wrap
+    call setbufvar(chat_gpt_session_id, '&syntax', original_syntax)
   endif
 
-  if bufwinnr(a:chat_gpt_session_id) == -1
-    execute 'split ' . a:chat_gpt_session_id
+  if bufwinnr(chat_gpt_session_id) == -1
+    execute 'split ' . chat_gpt_session_id
   endif
 
-  let last_lines = getbufline(a:chat_gpt_session_id, '$')
+  let last_lines = getbufline(chat_gpt_session_id, '$')
   let last_line = empty(last_lines) ? '' : last_lines[-1]
 
-  let new_lines = substitute(last_line . a:response, '\n', '\r\n\r', 'g')
+  let new_lines = substitute(last_line . response, '\n', '\r\n\r', 'g')
 
-  let parts = split(new_lines, '\n')
+  let lines = split(new_lines, '\n')
 
-  let clean_parts = []
-  for part in parts
-    call add(clean_parts, substitute(part, '\r', '', 'g'))
+  let clean_lines = []
+  for line in lines
+    call add(clean_lines, substitute(line, '\r', '', 'g'))
   endfor
 
-  call setbufline(a:chat_gpt_session_id, '$', clean_parts)
+  call setbufline(chat_gpt_session_id, '$', clean_lines)
+  call cursor('$', 1)
 
-  if a:finish_reason != ''
-    call setbufvar(a:chat_gpt_session_id, '&modifiable', 0)
+  if finish_reason != ''
+    call setbufvar(chat_gpt_session_id, '&modifiable', 0)
     setlocal nomodifiable
     wincmd p
   endif
 endfunction
-
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
   python3 << EOF
