@@ -1,4 +1,3 @@
-
 " ChatGPT Vim Plugin
 "
 " Ensure Python3 is available
@@ -32,17 +31,43 @@ openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
 EOF
 
 " Function to show ChatGPT responses in a new buffer
-function! DisplayChatGPTResponse(response)
-  let original_syntax = &syntax
 
-  new
-  setlocal buftype=nofile bufhidden=hide noswapfile nowrap nobuflisted
-  setlocal modifiable
-  execute 'setlocal syntax='. original_syntax
+function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
+  if !bufexists(a:chat_gpt_session_id)
+    let original_syntax = &syntax
 
-  call setline(1, split(a:response, '\n'))
-  setlocal nomodifiable
-  wincmd p
+    silent execute 'new '. a:chat_gpt_session_id
+    call setbufvar(a:chat_gpt_session_id, '&buftype', 'nofile')
+    call setbufvar(a:chat_gpt_session_id, '&bufhidden', 'hide')
+    call setbufvar(a:chat_gpt_session_id, '&swapfile', 0)
+    call setbufvar(a:chat_gpt_session_id, '&modifiable', 1)
+    call setbufvar(a:chat_gpt_session_id, '&wrap', 1)
+    call setbufvar(a:chat_gpt_session_id, '&syntax', original_syntax)
+  endif
+
+  if bufwinnr(a:chat_gpt_session_id) == -1
+    execute 'split ' . a:chat_gpt_session_id
+  endif
+
+  let last_lines = getbufline(a:chat_gpt_session_id, '$')
+  let last_line = empty(last_lines) ? '' : last_lines[-1]
+
+  let new_lines = substitute(last_line . a:response, '\n', '\r\n\r', 'g')
+
+  let parts = split(new_lines, '\n')
+
+  let clean_parts = []
+  for part in parts
+    call add(clean_parts, substitute(part, '\r', '', 'g'))
+  endfor
+
+  call setbufline(a:chat_gpt_session_id, '$', clean_parts)
+
+  if a:finish_reason != ''
+    call setbufvar(a:chat_gpt_session_id, '&modifiable', 0)
+    setlocal nomodifiable
+    wincmd p
+  endif
 endfunction
 
 " Function to interact with ChatGPT
@@ -52,19 +77,26 @@ function! ChatGPT(prompt) abort
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
 
+  systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
+
   try:
     response = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
-      messages=[{"role": "user", "content": prompt}],
+      messages=[systemCtx, {"role": "user", "content": prompt}],
       max_tokens=max_tokens,
       stop=None,
       temperature=0.7,
+      stream=True
     )
-    gpt_result = response.choices[0].message.content.strip()
-    vim.command("let g:gpt_result = '{}'".format(gpt_result.replace("'", "''")))
+
+    for chunk in response:
+      if chunk["choices"][0]["finish_reason"] is not None:
+        vim.command("call DisplayChatGPTResponse('', '{}', '{}')".format(chunk["choices"][0]["finish_reason"].replace("'", "''"), chunk["id"]))
+      elif "content" in chunk["choices"][0]["delta"]:
+        vim.command("call DisplayChatGPTResponse('{}', '', '{}')".format(chunk["choices"][0]["delta"]["content"].replace("'", "''"), chunk["id"]))
+        vim.command("redraw")
   except Exception as e:
     print("Error:", str(e))
-    vim.command("let g:gpt_result = ''")
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
@@ -109,7 +141,6 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
 
   call ChatGPT(prompt)
 
-  call DisplayChatGPTResponse(g:gpt_result)
   " Restore the original yank register
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
@@ -127,27 +158,13 @@ function! GenerateCommitMessage()
   " Send the yanked text to ChatGPT
   let yanked_text = @@
   let prompt = 'I have the following code changes, can you write a helpful commit message, including a short title?\n' . yanked_text
+
   call ChatGPT(prompt)
-
-  " Save the current buffer
-  silent! write
-
-  " Insert the response into the new buffer
-  call setline(1, split(g:gpt_result, '\n'))
-  setlocal modifiable
-
-  " Go back to the original buffer
-  wincmd p
-
-  " Restore the original yank register and position
-  let @@ = save_reg
-  call setreg('@', save_reg, save_regtype)
-  call setpos('.', save_cursor)
 endfunction
 "
 " Commands to interact with ChatGPT
 command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask', <line1>, <line2>, <q-args>)
-command! -range  -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, <q-args>)
+command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, <q-args>)
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test', <line1>, <line2>, <q-args>)
