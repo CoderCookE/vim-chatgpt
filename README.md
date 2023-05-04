@@ -8,34 +8,22 @@ This Vim plugin brings the power of OpenAI's ChatGPT API into your Vim editor, e
 1) A ChatGPT API key from OpenAI.
 
 ## Installation
-Install the `openai` Python module, you can use pip:
-```bash
-pip install openai
-```
-
-To install the chatgpt plugin, simply copy the `chatgpt.vim` file to your Vim plugin directory. If you're using [vim-pathogen](https://github.com/tpope/vim-pathogen), you can simply add the `chatgpt` directory to your `bundle` directory.
-
-### Setup your environment
 Add your ChatGPT API key to your environment:
 https://platform.openai.com/account/api-keys
 
+### Setup your environment
 To set up your environment, you can export the CHAT_GPT_KEY variable in your terminal:
-
 ```bash
 export CHAT_GPT_KEY='your-api-key-here'
 ```
 
 Alternatively, you can add the following lines to your `.vimrc` file to set up the chatgpt plugin for Vim:
-
 ```vim
 let g:chat_gpt_key='your-api-key-here'
 ```
 
-### Options
-`let g:chat_gpt_session_mode=v:false`
-`let g:chat_gpt_max_tokens=2000`
+To install the chatgpt plugin, simply copy the `chatgpt.vim` file to your Vim plugin directory. If you're using [vim-pathogen](https://github.com/tpope/vim-pathogen), you can simply add the `chatgpt` directory to your `bundle` directory.
 
-<<<<<<< HEAD
 Finally, to install the `openai` Python module, you can use pip:
 ```bash
 pip install openai
@@ -46,14 +34,15 @@ In your `.vimrc` file you set the following options
 ```vim
 let g:chat_gpt_max_tokens=2000
 let g:chat_gpt_model='gpt-4'
+let g:chat_gpt_session_mode=1
 ```
+
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
  - g:chat_gpt_model: This option allows you to specify the ChatGPT model you'd like to use. By default, it is set to 'gpt-3.5-turbo', which is a highly capable and versatile model. If you prefer to use a different model, such as 'gpt-4', simply change the value to the desired model name. Note that using a different model may affect the quality of the results and API usage costs.
+ - g:chat_gpt_session_mode: The customization allows you to maintain a persistent session with GPT, enabling a more interactive and coherent conversation with the AI model. By default, it is set to 0 which is off,
 
 By customizing these options, you can tailor the ChatGPT Vim Plugin to better suit your specific needs and preferences.
 
-=======
->>>>>>> 09338dc (Title: Add instructions for installing openai module and setting environment variables)
 ## Usage
 
 The plugin offers the following commands for interacting with ChatGPT:
