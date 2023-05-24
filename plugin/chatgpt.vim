@@ -28,7 +28,8 @@ EOF
 
 " Set API key
 python3 << EOF
-openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
+openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:chat_gpt_key')
+openai.proxy = 'http://localhost:1087'
 EOF
 
 " Function to show ChatGPT responses in a new buffer
