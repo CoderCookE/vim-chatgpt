@@ -11,6 +11,7 @@ python3 << EOF
 import sys
 import vim
 import os
+import traceback
 
 try:
     import openai
@@ -103,6 +104,7 @@ def chat_gpt(prompt):
         vim.command("call DisplayChatGPTResponse('{}', '', '{}')".format(chunk["choices"][0]["delta"]["content"].replace("'", "''"), chunk["id"]))
         vim.command("redraw")
   except Exception as e:
+    traceback.print_exc()
     print("Error:", str(e))
 
 chat_gpt(vim.eval('a:prompt'))
@@ -129,6 +131,8 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
     endif
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?\n' . yanked_text
+  elseif a:ask == 'complete'
+    let prompt = 'Please write codes with instruction:\n' . yanked_text
   elseif a:ask == 'explain'
     let prompt = 'I have the following code snippet, can you explain it?\n' . yanked_text
     if len(a:context) > 0
@@ -173,6 +177,7 @@ endfunction
 command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, <q-args>)
 command! -range Review call SendHighlightedCodeToChatGPT('review', <line1>, <line2>, '')
+command! -range Complete call SendHighlightedCodeToChatGPT('complete', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <line1>, <line2>, <q-args>)
