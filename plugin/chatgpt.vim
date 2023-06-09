@@ -99,6 +99,34 @@ chat_gpt(vim.eval('a:prompt'))
 EOF
 endfunction
 
+function! Retrie(prompt) abort
+  python3 << EOF
+from retrie import Helper
+
+def chat_retrie(prompt, max_history=5):
+    chat_history = []
+    qa = Helper("/Users/wangzhiguo/mylab").get_qa()
+    answer = qa({"question": prompt, "chat_history": chat_history})['answer']
+    chat_history = chat_history[-max_history:]
+    return answer
+
+result = chat_retrie(vim.eval('a:prompt'))
+vim.command("call OutputToBuffer('{}', 'v')".format(result.replace("\n", "\r\n")))
+EOF
+endfunction
+
+function! OutputToBuffer(param, direction)
+    if a:direction == "h"
+        split
+    elseif a:direction == "v"
+        vsplit
+    endif
+    enew
+    setlocal buftype=nofile bufhidden=hide noswapfile
+    call append(0, a:param)
+endfunction
+
+
 function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   " Save the current yank register
   let save_reg = @@
@@ -139,6 +167,7 @@ function! SendHighlightedCodeToChatGPT(ask, line1, line2, context)
   endif
 
   call ChatGPT(prompt)
+  "call Retrie(prompt)
 
   " Restore the original yank register
   let @@ = save_reg
@@ -185,4 +214,4 @@ command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <l
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <line1>, <line2>, <q-args>)
 command! GenerateCommit call GenerateCommitMessage()
-command! -nargs=1 InitQA call InitialQA(<q-args>)
+"command! -nargs=1 InitQA call InitialQA(<q-args>)

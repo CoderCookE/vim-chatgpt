@@ -38,8 +38,7 @@ class Helper():
                 if not re.match(r".*\.(py|java|txt)$", file):
                     continue
                 try:
-                    loader = TextLoader(os.path.join(dirpath, file),
-                                        encoding='utf-8')
+                    loader = TextLoader(os.path.join(dirpath, file), encoding='utf-8')
                     docs.extend(loader.load_and_split())
                 except Exception as e:
                     log.warning(e)
