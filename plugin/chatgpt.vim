@@ -6,19 +6,13 @@ if !has('python3')
   finish
 endif
 
-" Add ChatGPT dependencies
-python3 << EOF
-import sys
-import vim
-import os
-import traceback
-
-try:
-    import openai
-except ImportError:
-    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
-    raise
-EOF
+let g:Lf_py = "py3 "
+exec g:Lf_py "import vim, sys, os, re, os.path, openai"
+exec g:Lf_py "cwd = vim.eval('expand(\"<sfile>:p:h\")')"
+exec g:Lf_py "cwd = re.sub(r'(?<=^.)', ':', os.sep.join(cwd.split('/')[1:])) if os.name == 'nt' and cwd.startswith('/') else cwd"
+exec g:Lf_py "sys.path.insert(0, os.path.join(cwd,))"
+"exec g:Lf_py "print(sys.path)"
+exec g:Lf_py 'from utils import setup_openai; setup_openai()'
 
 " Set default values for Vim variables if they don't exist
 if !exists("g:chat_gpt_max_tokens")
@@ -28,12 +22,6 @@ endif
 if !exists("g:chat_gpt_model")
   let g:chat_gpt_model = 'gpt-3.5-turbo'
 endif
-
-" Set API key
-python3 << EOF
-openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:chat_gpt_key')
-openai.proxy = 'http://localhost:1087'
-EOF
 
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
@@ -93,7 +81,7 @@ def chat_gpt(prompt):
       messages=[systemCtx, {"role": "user", "content": prompt}],
       max_tokens=max_tokens,
       stop=None,
-      temperature=0.7,
+      temperature=0.2,
       stream=True
     )
 
@@ -172,6 +160,21 @@ function! GenerateCommitMessage()
 
   call ChatGPT(prompt)
 endfunction
+
+function! InitialQA(context)
+  let g:qa = {}
+    python3 << EOF
+from retrie import Helper
+
+def initial_qa(root_dir):
+    global qa
+    qa = Helper(root_dir, overwrite=True).get_qa()
+    print(qa)
+
+initial_qa(vim.eval('a:context'))
+EOF
+endfunction
+
 "
 " Commands to interact with ChatGPT
 command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask', <line1>, <line2>, <q-args>)
@@ -182,3 +185,4 @@ command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <l
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <line1>, <line2>, <q-args>)
 command! GenerateCommit call GenerateCommitMessage()
+command! -nargs=1 InitQA call InitialQA(<q-args>)
