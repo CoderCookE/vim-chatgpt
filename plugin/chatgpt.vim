@@ -11,7 +11,6 @@ exec g:Lf_py "import vim, sys, os, re, os.path, openai"
 exec g:Lf_py "cwd = vim.eval('expand(\"<sfile>:p:h\")')"
 exec g:Lf_py "cwd = re.sub(r'(?<=^.)', ':', os.sep.join(cwd.split('/')[1:])) if os.name == 'nt' and cwd.startswith('/') else cwd"
 exec g:Lf_py "sys.path.insert(0, os.path.join(cwd,))"
-"exec g:Lf_py "print(sys.path)"
 exec g:Lf_py 'from utils import setup_openai; setup_openai()'
 
 " Set default values for Vim variables if they don't exist
@@ -21,6 +20,10 @@ endif
 
 if !exists("g:chat_gpt_model")
   let g:chat_gpt_model = 'gpt-3.5-turbo'
+endif
+
+if !exists("g:lang")
+let g:lang = ''
 endif
 
 " Function to show ChatGPT responses in a new buffer
@@ -42,7 +45,7 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   endif
 
   if bufwinnr(chat_gpt_session_id) == -1
-    execute 'split ' . chat_gpt_session_id
+    execute 'vsplit ' . chat_gpt_session_id
   endif
 
   let last_lines = getbufline(chat_gpt_session_id, '$')
@@ -72,8 +75,9 @@ function! ChatGPT(prompt) abort
 
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
-  model= str(vim.eval('g:chat_gpt_model'))
-  systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
+  model = str(vim.eval('g:chat_gpt_model'))
+  lang = str(vim.eval('g:lang'))
+  systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. And respond in {lang}"}
 
   try:
     response = openai.ChatCompletion.create(
@@ -101,17 +105,18 @@ endfunction
 
 function! Retrie(prompt) abort
   python3 << EOF
-from retrie import Helper
+from retrie import Helper, log
+chat_history = []
 
 def chat_retrie(prompt, max_history=5):
-    chat_history = []
+    global chat_history
     qa = Helper("/Users/wangzhiguo/mylab").get_qa()
-    answer = qa({"question": prompt, "chat_history": chat_history})['answer']
-    chat_history = chat_history[-max_history:]
+    answer = qa({"question": prompt, "chat_history": chat_history[-max_history:]})['answer']
+    log.warning(f"len(chat_history): {len(chat_history)}")
     return answer
 
 result = chat_retrie(vim.eval('a:prompt'))
-vim.command("call OutputToBuffer('{}', 'v')".format(result.replace("\n", "\r\n")))
+vim.command("call OutputToBuffer('{}', 'v')".format(result.replace("'", "''")))
 EOF
 endfunction
 

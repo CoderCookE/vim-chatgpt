@@ -77,6 +77,6 @@ def nearestAncestor(markers, path):
 logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] [%(pathname)s:%(lineno)d] %(message)s",
     datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO)
+    level=logging.WARN)
 
 log = logging.getLogger()

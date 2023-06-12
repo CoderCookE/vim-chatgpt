@@ -28,6 +28,7 @@ class Helper():
         retriever.search_kwargs['maximal_marginal_relevance'] = True
         model = ChatOpenAI(model_name='gpt-3.5-turbo', temperature=temperature)
         qa = ConversationalRetrievalChain.from_llm(model, retriever=retriever)
+        qa.max_tokens_limit = 4000
         return qa
 
     # TODO show progress in vim status line
