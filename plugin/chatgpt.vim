@@ -167,7 +167,43 @@ function! GenerateCommitMessage()
 
   call ChatGPT(prompt)
 endfunction
-"
+
+" Menu for ChatGPT
+function! s:ChatGPTMenuSink(lineStart, lineEnd, id, choice)
+  call popup_hide(a:id)
+  let choices = {1:'Ask', 2:'Rewrite', 3:'Explain', 4:'Test', 5:'Review'}
+  if a:choice > 0 && a:choice < 6
+    call SendHighlightedCodeToChatGPT(choices[a:choice], a:lineStart, a:lineEnd, input('Prompt > '))
+  endif
+endfunction
+function! s:ChatGPTMenuFilter(lineStart, lineEnd, id, key)
+  if a:key == '1' || a:key == '2' || a:key == '3' || a:key == '4' || a:key == '5'
+    call s:ChatGPTMenuSink(a:lineStart, a:lineEnd, a:id, a:key)
+  else " No shortcut, pass to generic filter
+    return popup_filter_menu(a:id, a:key)
+  endif
+endfunction
+function! ChatGPTMenu() range
+  echo a:firstline. a:lastline
+  call popup_menu([ '1. Ask', '2. Rewrite', '3. Explain', '4. Test', '5. Review', ], #{
+        \ pos: 'topleft',
+        \ line: 'cursor',
+        \ col: 'cursor+2',
+        \ title: ' Chat GPT ',
+        \ highlight: 'question',
+        \ borderchars: ['─', '│', '─', '│', '╭', '╮', '╯', '╰'],
+        \ callback: function('s:ChatGPTMenuSink', [a:firstline, a:lastline]),
+        \ border: [],
+        \ cursorline: 1,
+        \ padding: [0,1,0,1],
+        \ filter: function('s:ChatGPTMenuFilter', [a:firstline, a:lastline]),
+        \ mapping: 0,
+        \ })
+endfunction
+
+" Expose mappings
+vnoremap <silent> <Plug>(chatgpt-menu) :call ChatGPTMenu()<CR>
+
 " Commands to interact with ChatGPT
 command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask', <line1>, <line2>, <q-args>)
 command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <line1>, <line2>, <q-args>)
