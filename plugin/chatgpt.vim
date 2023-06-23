@@ -171,7 +171,7 @@ endfunction
 " Menu for ChatGPT
 function! s:ChatGPTMenuSink(lineStart, lineEnd, id, choice)
   call popup_hide(a:id)
-  let choices = {1:'Ask', 2:'Rewrite', 3:'Explain', 4:'Test', 5:'Review'}
+  let choices = {1:'Ask', 2:'rewrite', 3:'explain', 4:'test', 5:'review'}
   if a:choice > 0 && a:choice < 6
     call SendHighlightedCodeToChatGPT(choices[a:choice], a:lineStart, a:lineEnd, input('Prompt > '))
   endif
