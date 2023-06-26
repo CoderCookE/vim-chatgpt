@@ -40,15 +40,14 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   let chat_gpt_session_id = a:chat_gpt_session_id
 
   if !bufexists(chat_gpt_session_id)
-    let original_syntax = &syntax
-
     silent execute 'new '. chat_gpt_session_id
     call setbufvar(chat_gpt_session_id, '&buftype', 'nofile')
     call setbufvar(chat_gpt_session_id, '&bufhidden', 'hide')
     call setbufvar(chat_gpt_session_id, '&swapfile', 0)
     setlocal modifiable
     setlocal wrap
-    call setbufvar(chat_gpt_session_id, '&syntax', original_syntax)
+    call setbufvar(chat_gpt_session_id, '&ft', 'markdown')
+    call setbufvar(chat_gpt_session_id, '&syntax', 'markdown')
   endif
 
   if bufwinnr(chat_gpt_session_id) == -1
