@@ -64,6 +64,13 @@ To use this command, visually select the lines of code you want to extend, then 
 
 The ChatGPT response will be displayed in a new buffer.
 
+## Mappings
+
+This plugin exposes a binding to open a menu for options on a visual selecition. You can map it like this:
+```
+vmap <silent> <leader>0 <Plug>(chatgpt-menu)
+```
+
 ### Example usage:
 1) Enter visual mode by pressing V.
 1) Select the lines of code you want to explain, review, or rewrite.
