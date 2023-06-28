@@ -173,6 +173,10 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   " Restore the original yank register
   let @@ = save_reg
   call setreg('@', save_reg, save_regtype)
+  let curpos = getcurpos()
+  call setpos("'<", curpos)
+  call setpos("'>", curpos)
+
 endfunction
 "
 " Function to generate a commit message
@@ -200,6 +204,7 @@ function! s:ChatGPTMenuSink(id, choice)
     call SendHighlightedCodeToChatGPT(choices[a:choice], input('Prompt > '))
   endif
 endfunction
+
 function! s:ChatGPTMenuFilter(id, key)
   if a:key == '1' || a:key == '2' || a:key == '3' || a:key == '4' || a:key == '5'
     call s:ChatGPTMenuSink(a:id, a:key)
