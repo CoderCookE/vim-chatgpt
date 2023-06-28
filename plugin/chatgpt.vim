@@ -33,6 +33,8 @@ endif
 
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
+  call cursor('$', 1)
+
   let response = a:response
   let finish_reason = a:finish_reason
 
