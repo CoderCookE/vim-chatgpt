@@ -138,7 +138,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   " Send the yanked text to ChatGPT
   let yanked_text = ''
 
-  if (col_end - col_start > 0) && (line_end - line_start > 0)
+  if (col_end - col_start > 0)
     let yanked_text = '```' . "\n" . @@ . "\n" . '```'
   endif
 
@@ -193,20 +193,21 @@ function! GenerateCommitMessage()
 endfunction
 
 " Menu for ChatGPT
-function! s:ChatGPTMenuSink(lineStart, lineEnd, id, choice)
+function! s:ChatGPTMenuSink(id, choice)
   call popup_hide(a:id)
   let choices = {1:'Ask', 2:'rewrite', 3:'explain', 4:'test', 5:'review'}
   if a:choice > 0 && a:choice < 6
-    call SendHighlightedCodeToChatGPT(choices[a:choice], a:lineStart, a:lineEnd, input('Prompt > '))
+    call SendHighlightedCodeToChatGPT(choices[a:choice], input('Prompt > '))
   endif
 endfunction
-function! s:ChatGPTMenuFilter(lineStart, lineEnd, id, key)
+function! s:ChatGPTMenuFilter(id, key)
   if a:key == '1' || a:key == '2' || a:key == '3' || a:key == '4' || a:key == '5'
-    call s:ChatGPTMenuSink(a:lineStart, a:lineEnd, a:id, a:key)
+    call s:ChatGPTMenuSink(a:id, a:key)
   else " No shortcut, pass to generic filter
     return popup_filter_menu(a:id, a:key)
   endif
 endfunction
+
 function! ChatGPTMenu() range
   echo a:firstline. a:lastline
   call popup_menu([ '1. Ask', '2. Rewrite', '3. Explain', '4. Test', '5. Review', ], #{
@@ -216,11 +217,11 @@ function! ChatGPTMenu() range
         \ title: ' Chat GPT ',
         \ highlight: 'question',
         \ borderchars: ['─', '│', '─', '│', '╭', '╮', '╯', '╰'],
-        \ callback: function('s:ChatGPTMenuSink', [a:firstline, a:lastline]),
+        \ callback: function('s:ChatGPTMenuSink'),
         \ border: [],
         \ cursorline: 1,
         \ padding: [0,1,0,1],
-        \ filter: function('s:ChatGPTMenuFilter', [a:firstline, a:lastline]),
+        \ filter: function('s:ChatGPTMenuFilter'),
         \ mapping: 0,
         \ })
 endfunction
