@@ -27,6 +27,10 @@ if !exists("g:chat_gpt_max_tokens")
   let g:chat_gpt_max_tokens = 2000
 endif
 
+if !exists("g:chat_gpt_temperature")
+  let g:chat_gpt_temperature = 0.7
+endif
+
 if !exists("g:chat_gpt_model")
   let g:chat_gpt_model = 'gpt-3.5-turbo'
 endif
@@ -81,6 +85,7 @@ function! ChatGPT(prompt) abort
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
   model= str(vim.eval('g:chat_gpt_model'))
+  temperature = float(vim.eval('g:chat_gpt_temperature'))
   systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
 
   try:
@@ -89,7 +94,7 @@ def chat_gpt(prompt):
       messages=[systemCtx, {"role": "user", "content": prompt}],
       max_tokens=max_tokens,
       stop='',
-      temperature=0.7,
+      temperature=temperature,
       stream=True
     )
 
