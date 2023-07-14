@@ -151,7 +151,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   " Send the yanked text to ChatGPT
   let yanked_text = ''
 
-  if (col_end - col_start > 0)
+  if (col_end - col_start > 0) || (line_end - line_start > 0)
     let yanked_text = '```' . "\n" . @@ . "\n" . '```'
   endif
 
