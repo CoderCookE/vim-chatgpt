@@ -20,6 +20,7 @@ except ImportError:
 
 # Set API key
 openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
+openai.proxy = os.getenv("OPENAI_PROXY")
 EOF
 
 " Set default values for Vim variables if they don't exist
@@ -33,6 +34,10 @@ endif
 
 if !exists("g:chat_gpt_model")
   let g:chat_gpt_model = 'gpt-3.5-turbo'
+endif
+
+if !exists("g:chat_gpt_lang")
+let g:chat_gpt_lang = ''
 endif
 
 " Function to show ChatGPT responses in a new buffer
@@ -84,9 +89,10 @@ function! ChatGPT(prompt) abort
 
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
-  model= str(vim.eval('g:chat_gpt_model'))
+  model = str(vim.eval('g:chat_gpt_model'))
+  lang = str(vim.eval('g:chat_gpt_lang'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
-  systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
+  systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. And respond in {lang}"}
 
   try:
     response = openai.ChatCompletion.create(
@@ -145,7 +151,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   " Send the yanked text to ChatGPT
   let yanked_text = ''
 
-  if (col_end - col_start > 0)
+  if (col_end - col_start > 0) || (line_end - line_start > 0)
     let yanked_text = '```' . "\n" . @@ . "\n" . '```'
   endif
 
@@ -158,6 +164,8 @@ function! SendHighlightedCodeToChatGPT(ask, context)
     endif
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?' . "\n" . yanked_text . "\n"
+  elseif a:ask == 'complete'
+    let prompt = 'Please write codes with instruction:\n' . yanked_text
   elseif a:ask == 'explain'
     let prompt = 'I have the following code snippet, can you explain it?' . "\n" . yanked_text
     if len(a:context) > 0
@@ -248,5 +256,6 @@ command! -range Review call SendHighlightedCodeToChatGPT('review', '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test',<q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <q-args>)
+command! -range -nargs=? Complete call SendHighlightedCodeToChatGPT('complete', <q-args>)
 
 command! GenerateCommit call GenerateCommitMessage()
