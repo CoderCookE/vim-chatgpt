@@ -19,7 +19,7 @@ except ImportError:
     raise
 
 # Set API key
-openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:openai_api_key')
+openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:chat_gpt_key') or vim.eval('g:openai_api_key')
 openai.proxy = os.getenv("OPENAI_PROXY")
 EOF
 
@@ -37,7 +37,7 @@ if !exists("g:chat_gpt_model")
 endif
 
 if !exists("g:chat_gpt_lang")
-let g:chat_gpt_lang = ''
+  let g:chat_gpt_lang = ''
 endif
 
 " Function to show ChatGPT responses in a new buffer
