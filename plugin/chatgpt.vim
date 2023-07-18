@@ -18,8 +18,13 @@ except ImportError:
     print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
     raise
 
-# Set API key
-openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:chat_gpt_key') or vim.eval('g:openai_api_key')
+def safe_vim_eval(expression):
+    try:
+        return vim.eval(expression)
+    except vim.error:
+        return None
+
+openai.api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
 openai.proxy = os.getenv("OPENAI_PROXY")
 EOF
 
