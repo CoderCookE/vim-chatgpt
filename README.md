@@ -42,7 +42,7 @@ let g:chat_gpt_max_tokens=2000
 let g:chat_gpt_model='gpt-4'
 let g:chat_gpt_session_mode=1
 let g:chat_gpt_temperature = 0.7
-let g:chat_gpt_lang = 'in Chinese, '
+let g:chat_gpt_lang = 'Chinese'
 ```
 
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
@@ -71,7 +71,6 @@ To use this command type `git commit -v`  then `:GenerateCommit`
 5) `:<>Rewrite '<context>'` Sends the highlighted code to ChatGPT and requests a rewritten version, with the option to include additional context.
 5) `:<>Test '<context>'` Sends the highlighted code to ChatGPT and requests it writes a test, with the option to include additional context.
 5) `:<>Fix '<context>'` Sends the highlighted code to ChatGPT and that it fixes any errors it may find, with the option to include additional context.
-5) `:<>Complete '<context>'` Sends the highlighted code to ChatGPT and that it write codes with instruction, such as `#def quick_sort():`.
 
 To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
 
@@ -87,7 +86,7 @@ vmap <silent> <leader>0 <Plug>(chatgpt-menu)
 ### Example usage:
 1) Enter visual mode by pressing V.
 1) Select the lines of code you want to explain, review, or rewrite.
-1) Type `:Explain`, `:Review`, or `:Rewrite`, `:Fix`, `:Test`, `:Complete` and press Enter.
+1) Type `:Explain`, `:Review`, or `:Rewrite`, `:Fix`, `:Test` and press Enter.
 
 ## Notes
 This plugin is not affiliated with or endorsed by OpenAI. You are responsible for managing your API usage and any associated costs when using this plugin.

@@ -90,9 +90,10 @@ function! ChatGPT(prompt) abort
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
   model = str(vim.eval('g:chat_gpt_model'))
-  lang = str(vim.eval('g:chat_gpt_lang'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
-  systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. And respond in {lang}"}
+  lang = str(vim.eval('g:chat_gpt_lang'))
+  resp = lang and f" And respond in {lang}." or ""
+  systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. {resp}"}
 
   try:
     response = openai.ChatCompletion.create(
@@ -164,8 +165,6 @@ function! SendHighlightedCodeToChatGPT(ask, context)
     endif
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?' . "\n" . yanked_text . "\n"
-  elseif a:ask == 'complete'
-    let prompt = 'Please write codes with instruction:\n' . yanked_text
   elseif a:ask == 'explain'
     let prompt = 'I have the following code snippet, can you explain it?' . "\n" . yanked_text
     if len(a:context) > 0
@@ -256,6 +255,5 @@ command! -range Review call SendHighlightedCodeToChatGPT('review', '')
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test',<q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <q-args>)
-command! -range -nargs=? Complete call SendHighlightedCodeToChatGPT('complete', <q-args>)
 
 command! GenerateCommit call GenerateCommitMessage()
