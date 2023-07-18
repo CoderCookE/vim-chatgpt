@@ -19,7 +19,8 @@ except ImportError:
     raise
 
 # Set API key
-openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
+openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:openai_api_key')
+openai.proxy = os.getenv("OPENAI_PROXY")
 EOF
 
 " Set default values for Vim variables if they don't exist
@@ -33,6 +34,10 @@ endif
 
 if !exists("g:chat_gpt_model")
   let g:chat_gpt_model = 'gpt-3.5-turbo'
+endif
+
+if !exists("g:chat_gpt_lang")
+let g:chat_gpt_lang = ''
 endif
 
 " Function to show ChatGPT responses in a new buffer
@@ -84,9 +89,11 @@ function! ChatGPT(prompt) abort
 
 def chat_gpt(prompt):
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
-  model= str(vim.eval('g:chat_gpt_model'))
+  model = str(vim.eval('g:chat_gpt_model'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
-  systemCtx = {"role": "system", "content": "You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using."}
+  lang = str(vim.eval('g:chat_gpt_lang'))
+  resp = lang and f" And respond in {lang}." or ""
+  systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. {resp}"}
 
   try:
     response = openai.ChatCompletion.create(
@@ -145,7 +152,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   " Send the yanked text to ChatGPT
   let yanked_text = ''
 
-  if (col_end - col_start > 0)
+  if (col_end - col_start > 0) || (line_end - line_start > 0)
     let yanked_text = '```' . "\n" . @@ . "\n" . '```'
   endif
 
