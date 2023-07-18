@@ -19,7 +19,7 @@ except ImportError:
     raise
 
 # Set API key
-openai.api_key = os.getenv('CHAT_GPT_KEY') or vim.eval('g:chat_gpt_key')
+openai.api_key = os.getenv('OPENAI_API_KEY') or vim.eval('g:openai_api_key')
 openai.proxy = os.getenv("OPENAI_PROXY")
 EOF
 

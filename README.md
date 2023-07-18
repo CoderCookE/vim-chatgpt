@@ -12,9 +12,9 @@ Add your ChatGPT API key to your environment:
 https://platform.openai.com/account/api-keys
 
 ### Setup your environment
-To set up your environment, you can export the CHAT_GPT_KEY variable in your terminal:
+To set up your environment, you can export the OPENAI_API_KEY variable in your terminal:
 ```bash
-export CHAT_GPT_KEY='your-api-key-here'
+export OPENAI_API_KEY='your-api-key-here'
 ```
 And more useful env is proxy:
 ```bash
@@ -25,7 +25,7 @@ export OPENAI_API_BASE='https://openai.xxx.cloud/v1'        # refer: https://git
 
 Alternatively, you can add the following lines to your `.vimrc` file to set up the chatgpt plugin for Vim:
 ```vim
-let g:chat_gpt_key='your-api-key-here'
+let g:openai_api_key='your-api-key-here'
 ```
 
 To install the chatgpt plugin, simply copy the `chatgpt.vim` file to your Vim plugin directory. If you're using [vim-pathogen](https://github.com/tpope/vim-pathogen), you can simply add the `chatgpt` directory to your `bundle` directory.
