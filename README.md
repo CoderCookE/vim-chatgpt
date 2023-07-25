@@ -20,7 +20,7 @@ And more useful env is proxy:
 ```bash
 export OPENAI_PROXY="http://localhost:1087"     # with proxy
 # or
-export OPENAI_API_BASE='https://openai.xxx.cloud/v1'        # refer: https://github.com/egoist/openai-proxy 
+export OPENAI_API_BASE='https://openai.xxx.cloud/v1'        # refer: https://github.com/egoist/openai-proxy
 ```
 
 Alternatively, you can add the following lines to your `.vimrc` file to set up the chatgpt plugin for Vim:
@@ -72,6 +72,8 @@ To use this command type `git commit -v`  then `:GenerateCommit`
 5) `:<>Test '<context>'` Sends the highlighted code to ChatGPT and requests it writes a test, with the option to include additional context.
 5) `:<>Fix '<context>'` Sends the highlighted code to ChatGPT and that it fixes any errors it may find, with the option to include additional context.
 
+6) `:<>Document '<context>'` Sends the highlighted code to ChatGPT and requests documentation, with the option to include additional context.
+
 To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
 
 The ChatGPT response will be displayed in a new buffer.
@@ -99,6 +101,7 @@ This plugin is not affiliated with or endorsed by OpenAI. You are responsible fo
 - Programming help
 - Code explanations
 - Code review
+- Code documentation
 - Code rewrites
 - Test generation
 - Code fixes
