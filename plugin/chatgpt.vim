@@ -171,7 +171,8 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?' . "\n" . yanked_text . "\n"
   elseif a:ask == 'document'
-    let prompt = 'Identify language from this code snippet and returns documentation following language pattern' . "\n" . yanked_text . "\n"
+    let syntax = &syntax
+    let prompt = 'Given the following code snippet written in ' . syntax . ' return documentation following language pattern conventions' . "\n" . yanked_text . "\n"
   elseif a:ask == 'explain'
     let prompt = 'I have the following code snippet, can you explain it?' . "\n" . yanked_text
     if len(a:context) > 0
