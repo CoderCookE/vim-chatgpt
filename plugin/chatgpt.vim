@@ -260,7 +260,7 @@ vnoremap <silent> <Plug>(chatgpt-menu) :call ChatGPTMenu()<CR>
 command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask',<q-args>)
 command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <q-args>)
 command! -range Review call SendHighlightedCodeToChatGPT('review', '')
-command! -range Document call SendHighlightedCodeToChatGPT('document', '')
+command! -range -nargs=? Document call SendHighlightedCodeToChatGPT('document', <q-args>)
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test',<q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <q-args>)
