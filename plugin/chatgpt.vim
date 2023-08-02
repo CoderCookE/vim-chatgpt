@@ -170,6 +170,9 @@ function! SendHighlightedCodeToChatGPT(ask, context)
     endif
   elseif a:ask == 'review'
     let prompt = 'I have the following code snippet, can you provide a code review for?' . "\n" . yanked_text . "\n"
+  elseif a:ask == 'document'
+    let syntax = &syntax
+    let prompt = 'Given the following code snippet written in ' . syntax . ' return documentation following language pattern conventions' . "\n" . yanked_text . "\n"
   elseif a:ask == 'explain'
     let prompt = 'I have the following code snippet, can you explain it?' . "\n" . yanked_text
     if len(a:context) > 0
@@ -218,7 +221,7 @@ endfunction
 " Menu for ChatGPT
 function! s:ChatGPTMenuSink(id, choice)
   call popup_hide(a:id)
-  let choices = {1:'Ask', 2:'rewrite', 3:'explain', 4:'test', 5:'review'}
+  let choices = {1:'Ask', 2:'rewrite', 3:'explain', 4:'test', 5:'review', 6:'document'}
   if a:choice > 0 && a:choice < 6
     call SendHighlightedCodeToChatGPT(choices[a:choice], input('Prompt > '))
   endif
@@ -234,7 +237,7 @@ endfunction
 
 function! ChatGPTMenu() range
   echo a:firstline. a:lastline
-  call popup_menu([ '1. Ask', '2. Rewrite', '3. Explain', '4. Test', '5. Review', ], #{
+  call popup_menu([ '1. Ask', '2. Rewrite', '3. Explain', '4. Test', '5. Review', '6. Document'], #{
         \ pos: 'topleft',
         \ line: 'cursor',
         \ col: 'cursor+2',
@@ -257,6 +260,7 @@ vnoremap <silent> <Plug>(chatgpt-menu) :call ChatGPTMenu()<CR>
 command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask',<q-args>)
 command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <q-args>)
 command! -range Review call SendHighlightedCodeToChatGPT('review', '')
+command! -range -nargs=? Document call SendHighlightedCodeToChatGPT('document', <q-args>)
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test',<q-args>)
 command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <q-args>)
