@@ -45,6 +45,10 @@ if !exists("g:chat_gpt_lang")
   let g:chat_gpt_lang = ''
 endif
 
+if !exists("g:chat_gpt_split_direction")
+  let g:chat_gpt_split_direction = 'horizontal'
+endif
+
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   call cursor('$', 1)
@@ -55,7 +59,11 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   let chat_gpt_session_id = a:chat_gpt_session_id
 
   if !bufexists(chat_gpt_session_id)
-    silent execute 'new '. chat_gpt_session_id
+    if g:chat_gpt_split_direction ==# 'vertical'
+      silent execute 'vnew '. chat_gpt_session_id
+    else
+      silent execute 'new '. chat_gpt_session_id
+    endif
     call setbufvar(chat_gpt_session_id, '&buftype', 'nofile')
     call setbufvar(chat_gpt_session_id, '&bufhidden', 'hide')
     call setbufvar(chat_gpt_session_id, '&swapfile', 0)
@@ -66,7 +74,11 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   endif
 
   if bufwinnr(chat_gpt_session_id) == -1
-    execute 'split ' . chat_gpt_session_id
+    if g:chat_gpt_split_direction ==# 'vertical'
+      execute 'vsplit ' . chat_gpt_session_id
+    else
+      execute 'split ' . chat_gpt_session_id
+    endif
   endif
 
   let last_lines = getbufline(chat_gpt_session_id, '$')

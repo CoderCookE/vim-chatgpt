@@ -43,6 +43,7 @@ let g:chat_gpt_model='gpt-4'
 let g:chat_gpt_session_mode=1
 let g:chat_gpt_temperature = 0.7
 let g:chat_gpt_lang = 'Chinese'
+let g:chat_gpt_split_direction = 'vertical'
 ```
 
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
@@ -50,6 +51,7 @@ let g:chat_gpt_lang = 'Chinese'
  - g:chat_gpt_session_mode: The customization allows you to maintain a persistent session with GPT, enabling a more interactive and coherent conversation with the AI model. By default, it is set to 0 which is off,
  - g:chat_gpt_temperature: Controls the randomness of the AI's responses. A higher temperature value (close to 1.0) will be more random, lower 0.1 will be less random,
  - g:chat_gpt_lang: Answer in certain langusage, such as Chinese,
+ - g:chat_gpt_split_direction: Controls how to open splits, 'vertical' or 'horizontal'. Plugin opens horizontal splits by default.
 By customizing these options, you can tailor the ChatGPT Vim Plugin to better suit your specific needs and preferences.
 
 ## Usage
