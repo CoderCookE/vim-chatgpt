@@ -156,6 +156,8 @@ endfunction
 
 " Function to send highlighted code to ChatGPT
 function! SendHighlightedCodeToChatGPT(ask, context)
+  let save_cursor = getcurpos()
+
   " Save the current yank register
   let save_reg = @@
   let save_regtype = getregtype('@')
@@ -210,6 +212,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   let curpos = getcurpos()
   call setpos("'<", curpos)
   call setpos("'>", curpos)
+  call setpos('.', save_cursor)
 
 endfunction
 "
