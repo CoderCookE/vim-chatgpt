@@ -51,8 +51,6 @@ endif
 
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
-  call cursor('$', 1)
-
   let response = a:response
   let finish_reason = a:finish_reason
 
@@ -156,6 +154,8 @@ endfunction
 
 " Function to send highlighted code to ChatGPT
 function! SendHighlightedCodeToChatGPT(ask, context)
+  let save_cursor = getcurpos()
+
   " Save the current yank register
   let save_reg = @@
   let save_regtype = getregtype('@')
@@ -210,6 +210,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   let curpos = getcurpos()
   call setpos("'<", curpos)
   call setpos("'>", curpos)
+  call setpos('.', save_cursor)
 
 endfunction
 "
