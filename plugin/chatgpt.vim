@@ -108,27 +108,64 @@ def chat_gpt(prompt):
   temperature = float(vim.eval('g:chat_gpt_temperature'))
   lang = str(vim.eval('g:chat_gpt_lang'))
   resp = lang and f" And respond in {lang}." or ""
+
   systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. {resp}"}
+  messages = []
+  session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") && g:chat_gpt_session_mode')) else None
+
+
+  # If session id exists and is in vim buffers
+  if session_id:
+    buffer = []
+
+    for b in vim.buffers:
+      with open('/tmp/file', 'w') as file:
+        file.write(f"Found buffer {b.name}" + '\n')
+       # If the buffer name matches the session id
+
+      if session_id in b.name:
+        buffer = b[:]
+        break
+
+    # Read the lines from the buffer
+    history = "\n".join(buffer).split('\n\n>>>')
+    history.reverse()
+
+    # Adding messages to history until token limit is reached
+    token_count = 0
+
+    with open('/tmp/file', 'a') as file:
+      for line in history:
+        file.write(line + '\n')
+
+        if ':\n' in line:
+          role, message = line.split(":\n")
+
+          if token_count < max_tokens / 4:
+              messages.insert(0, {
+                  "role": role.lower(),
+                  "content": message
+              })
+              token_count += len(message)
+
+  if session_id:
+    content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'.replace("'", "''")
+
+    vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), session_id))
+    vim.command("redraw")
+
+  messages.append({"role": "user", "content": prompt})
+  messages.insert(0, systemCtx)
 
   try:
     response = openai.ChatCompletion.create(
       model=model,
-      messages=[systemCtx, {"role": "user", "content": prompt}],
+      messages=messages,
       max_tokens=max_tokens,
       stop='',
       temperature=temperature,
       stream=True
     )
-
-    # Check if `g:chat_gpt_session_mode` exists and set session_id accordingly
-    session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") && g:chat_gpt_session_mode')) else None
-
-    # Call DisplayChatGPTResponse with the prompt
-    if session_id:
-      content = '\n\n>>>User:\n' + prompt + '\n\n<<<Assistant:\n'.replace("'", "''")
-
-      vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), session_id))
-      vim.command("redraw")
 
     # Iterate through the response chunks
     for chunk in response:
