@@ -119,10 +119,7 @@ def chat_gpt(prompt):
     buffer = []
 
     for b in vim.buffers:
-      with open('/tmp/file', 'w') as file:
-        file.write(f"Found buffer {b.name}" + '\n')
        # If the buffer name matches the session id
-
       if session_id in b.name:
         buffer = b[:]
         break
@@ -134,19 +131,16 @@ def chat_gpt(prompt):
     # Adding messages to history until token limit is reached
     token_count = 0
 
-    with open('/tmp/file', 'a') as file:
-      for line in history:
-        file.write(line + '\n')
+    for line in history:
+      if ':\n' in line:
+        role, message = line.split(":\n")
 
-        if ':\n' in line:
-          role, message = line.split(":\n")
-
-          if token_count < max_tokens / 4:
-              messages.insert(0, {
-                  "role": role.lower(),
-                  "content": message
-              })
-              token_count += len(message)
+        if token_count < max_tokens / 4:
+            messages.insert(0, {
+                "role": role.lower(),
+                "content": message
+            })
+            token_count += len(message)
 
   if session_id:
     content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'.replace("'", "''")
