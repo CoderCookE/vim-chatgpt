@@ -135,12 +135,13 @@ def chat_gpt(prompt):
       if ':\n' in line:
         role, message = line.split(":\n")
 
+        token_count += len(message)
+
         if token_count < max_tokens / 4:
             messages.insert(0, {
                 "role": role.lower(),
                 "content": message
             })
-            token_count += len(message)
 
   if session_id:
     content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'.replace("'", "''")
