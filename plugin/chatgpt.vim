@@ -157,7 +157,7 @@ def chat_gpt(prompt):
       model=model,
       messages=messages,
       max_tokens=max_tokens,
-      stop='',
+      stop='',
       temperature=temperature,
       stream=True
     )
