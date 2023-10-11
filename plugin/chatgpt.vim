@@ -129,15 +129,15 @@ def chat_gpt(prompt):
     history.reverse()
 
     # Adding messages to history until token limit is reached
-    token_count = 0
+    token_count = max_tokens - len(prompt) - len(str(systemCtx))
 
     for line in history:
       if ':\n' in line:
         role, message = line.split(":\n")
 
-        token_count += len(message)
+        token_count -= len(message)
 
-        if token_count < max_tokens / 4:
+        if token_count > 0:
             messages.insert(0, {
                 "role": role.lower(),
                 "content": message
