@@ -34,6 +34,8 @@ Finally, to install the `openai` Python module, you can use pip:
 ```bash
 pip install openai
 ```
+[Detailed Direction For Installation](https://github.com/CoderCookE/vim-chatgpt/issues/4#issuecomment-1704607737)
+
 ## Customization
 In your `.vimrc` file you set the following options
 
