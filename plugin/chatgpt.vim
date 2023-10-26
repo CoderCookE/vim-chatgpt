@@ -91,6 +91,10 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   endfor
 
   call setbufline(chat_gpt_session_id, '$', clean_lines)
+
+  execute bufwinnr(chat_gpt_session_id) . 'wincmd w'
+  " Move the viewport to the bottom of the buffer
+  normal! G
   call cursor('$', 1)
 
   if finish_reason != ''
@@ -111,8 +115,7 @@ def chat_gpt(prompt):
 
   systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. {resp}"}
   messages = []
-  session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") && g:chat_gpt_session_mode')) else None
-
+  session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1 else None
 
   # If session id exists and is in vim buffers
   if session_id:
