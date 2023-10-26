@@ -49,7 +49,7 @@ let g:chat_gpt_split_direction = 'vertical'
 ```
 
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
- - g:chat_gpt_model: This option allows you to specify the ChatGPT model you'd like to use. By default, it is set to 'gpt-3.5-turbo', which is a highly capable and versatile model. If you prefer to use a different model, such as 'gpt-4', simply change the value to the desired model name. Note that using a different model may affect the quality of the results and API usage costs.
+ - g:chat_gpt_model: This option allows you to specify the ChatGPT model you'd like to use. By default, it is set to 'gpt-3.5-turbo' with a token limit of 4097, If you prefer to use a different model, such as {"gpt-3.5-turbo-16k": 16385, "gpt-4": 8192, "gpt-4-32k": 32768}, simply change the value to the desired model name. Note that using a different model may affect the quality of the results and API usage costs.
  - g:chat_gpt_session_mode: The customization allows you to maintain a persistent session with GPT, enabling a more interactive and coherent conversation with the AI model. By default, it is set to 1 which is on,
  - g:chat_gpt_temperature: Controls the randomness of the AI's responses. A higher temperature value (close to 1.0) will be more random, lower 0.1 will be less random,
  - g:chat_gpt_lang: Answer in certain langusage, such as Chinese,
