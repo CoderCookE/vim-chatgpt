@@ -91,6 +91,10 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   endfor
 
   call setbufline(chat_gpt_session_id, '$', clean_lines)
+
+  execute bufwinnr(chat_gpt_session_id) . 'wincmd w'
+  " Move the viewport to the bottom of the buffer
+  normal! G
   call cursor('$', 1)
 
   if finish_reason != ''
@@ -103,6 +107,8 @@ function! ChatGPT(prompt) abort
   python3 << EOF
 
 def chat_gpt(prompt):
+  token_limits = {"gpt-3.5-turbo": 4097, "gpt-3.5-turbo-16k": 16385, "gpt-4": 8192, "gpt-4-32k": 32768}
+
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
   model = str(vim.eval('g:chat_gpt_model'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
@@ -111,8 +117,7 @@ def chat_gpt(prompt):
 
   systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. {resp}"}
   messages = []
-  session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") && g:chat_gpt_session_mode')) else None
-
+  session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1 else None
 
   # If session id exists and is in vim buffers
   if session_id:
@@ -129,7 +134,7 @@ def chat_gpt(prompt):
     history.reverse()
 
     # Adding messages to history until token limit is reached
-    token_count = max_tokens - len(prompt) - len(str(systemCtx))
+    token_count = token_limits.get(model, 4097) - max_tokens - len(prompt) - len(str(systemCtx))
 
     for line in history:
       if ':\n' in line:
@@ -200,38 +205,26 @@ function! SendHighlightedCodeToChatGPT(ask, context)
 
   " Send the yanked text to ChatGPT
   let yanked_text = ''
+  let syntax = &syntax
 
   if (col_end - col_start > 0) || (line_end - line_start > 0)
-    let yanked_text = '```' . "\n" . @@ . "\n" . '```'
+    let yanked_text = '```' . syntax . "\n" . @@ . "\n" . '```'
   endif
+
+  let prompt_templates = {
+  \ 'rewrite': 'Can you rewrite it more idiomatically?',
+  \ 'review': 'Can you provide a code review for?',
+  \ 'document': 'Return documentation following language pattern conventions.',
+  \ 'explain': 'Can you explain it?',
+  \ 'test': 'Can you write a test for it?',
+  \ 'fix': 'It has an error I need you to fix.'
+  \}
 
   let prompt = a:context . ' ' . "\n" . yanked_text
 
-  if a:ask == 'rewrite'
-    let prompt = 'I have the following code snippet, can you rewrite it more idiomatically?' . "\n" . yanked_text . "\n"
-    if len(a:context) > 0
-      let prompt = 'I have the following code snippet, can you rewrite to' . a:context . '?' . "\n" . yanked_text . "\n"
-    endif
-  elseif a:ask == 'review'
-    let prompt = 'I have the following code snippet, can you provide a code review for?' . "\n" . yanked_text . "\n"
-  elseif a:ask == 'document'
-    let syntax = &syntax
-    let prompt = 'Given the following code snippet written in ' . syntax . ' return documentation following language pattern conventions' . "\n" . yanked_text . "\n"
-  elseif a:ask == 'explain'
-    let prompt = 'I have the following code snippet, can you explain it?' . "\n" . yanked_text
-    if len(a:context) > 0
-      let prompt = 'I have the following code snippet, can you explain, ' . a:context . '?' . "\n" . yanked_text
-    endif
-  elseif a:ask == 'test'
-    let prompt = 'I have the following code snippet, can you write a test for it?' . "\n" . yanked_text
-    if len(a:context) > 0
-      let prompt = 'I have the following code snippet, can you write a test for it, ' . a:context . '?' . "\n" . yanked_text
-    endif
-  elseif a:ask == 'fix'
-    let prompt = 'I have the following code snippet, it has an error I need you to fix:' . "\n" . yanked_text . "\n"
-    if len(a:context) > 0
-      let prompt = 'I have the following code snippet I would want you to fix, ' . a:context . ':' . "\n" . yanked_text . "\n"
-    endif
+  if has_key(prompt_templates, a:ask)
+    let template  = "Given the following code snippet ". prompt_templates[a:ask]
+    let prompt = template . "\n" . yanked_text . "\n" . a:context
   endif
 
   call ChatGPT(prompt)
@@ -258,7 +251,8 @@ function! GenerateCommitMessage()
 
   " Send the yanked text to ChatGPT
   let yanked_text = @@
-  let prompt = 'I have the following code changes, can you write a helpful commit message, including a short title?' . "\n" .  yanked_text
+  let prompt = 'I have the following code changes, can you write a helpful commit message, including a short title? Only respond with the commit message' . "\n" .  yanked_text
+  let g:chat_gpt_session_mode = 0
 
   call ChatGPT(prompt)
 endfunction
@@ -302,9 +296,9 @@ endfunction
 vnoremap <silent> <Plug>(chatgpt-menu) :call ChatGPTMenu()<CR>
 
 " Commands to interact with ChatGPT
-command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('Ask',<q-args>)
+command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('ask',<q-args>)
 command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <q-args>)
-command! -range Review call SendHighlightedCodeToChatGPT('review', '')
+command! -range -nargs=? Review call SendHighlightedCodeToChatGPT('review', <q-args>)
 command! -range -nargs=? Document call SendHighlightedCodeToChatGPT('document', <q-args>)
 command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <q-args>)
 command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test',<q-args>)
