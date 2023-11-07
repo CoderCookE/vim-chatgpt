@@ -107,7 +107,14 @@ function! ChatGPT(prompt) abort
   python3 << EOF
 
 def chat_gpt(prompt):
-  token_limits = {"gpt-3.5-turbo": 4097, "gpt-3.5-turbo-16k": 16385, "gpt-4": 8192, "gpt-4-32k": 32768}
+  token_limits = {
+    "gpt-3.5-turbo": 4097,
+    "gpt-3.5-turbo-16k": 16385,
+    "gpt-3.5-turbo-1106": 16385,
+    "gpt-4": 8192,
+    "gpt-4-32k": 32768,
+    "gpt-4-1106-preview": 128000,
+  }
 
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
   model = str(vim.eval('g:chat_gpt_model'))
