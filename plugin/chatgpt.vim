@@ -24,8 +24,8 @@ def safe_vim_eval(expression):
     except vim.error:
         return None
 
-openai.api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
-openai.proxy = os.getenv("OPENAI_PROXY")
+api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:openai_api_key') or safe_vim_eval('g:chat_gpt_key')
+client = openai.OpenAI(api_key=api_key)
 EOF
 
 " Set default values for Vim variables if they don't exist
@@ -165,7 +165,7 @@ def chat_gpt(prompt):
   messages.insert(0, systemCtx)
 
   try:
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
       model=model,
       messages=messages,
       max_tokens=max_tokens,
@@ -176,10 +176,10 @@ def chat_gpt(prompt):
 
     # Iterate through the response chunks
     for chunk in response:
-      chunk_session_id = session_id if session_id else chunk["id"]
-      choice = chunk["choices"][0]
-      finish_reason = choice.get("finish_reason")
-      content = choice.get("delta", {}).get("content")
+      chunk_session_id = session_id if session_id else chunk.id
+      choice = chunk.choices[0]
+      finish_reason = choice.finish_reason
+      content = choice.delta.content
 
       # Call DisplayChatGPTResponse with the finish_reason or content
       if finish_reason:
