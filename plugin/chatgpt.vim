@@ -226,6 +226,10 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   \ 'fix': 'It has an error I need you to fix.'
   \}
 
+  if exists('g:chat_gpt_custom_prompts')
+    call extend(prompt_templates, g:chat_gpt_custom_prompts)
+  endif
+
   let prompt = a:context . ' ' . "\n" . yanked_text
 
   if has_key(prompt_templates, a:ask)
