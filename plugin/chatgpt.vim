@@ -50,12 +50,13 @@ if !exists("g:chat_gpt_split_direction")
 endif
 
 let g:prompt_templates = {
-\ 'rewrite': 'Can you rewrite it more idiomatically?',
-\ 'review': 'Can you provide a code review for?',
+\ 'ask': '',
+\ 'rewrite': 'Can you rewrite this more idiomatically?',
+\ 'review': 'Can you provide a code review?',
 \ 'document': 'Return documentation following language pattern conventions.',
-\ 'explain': 'Can you explain it?',
-\ 'test': 'Can you write a test for it?',
-\ 'fix': 'It has an error I need you to fix.'
+\ 'explain': 'Can you explain how this works?',
+\ 'test': 'Can you write a test?',
+\ 'fix':  'I have an error I need you to fix.'
 \}
 
 if exists('g:chat_gpt_custom_prompts')
@@ -234,8 +235,14 @@ function! SendHighlightedCodeToChatGPT(ask, context)
 
   let prompt = a:context . ' ' . "\n" . yanked_text
 
+  echo a:ask
   if has_key(g:prompt_templates, a:ask)
-    let template  = "Given the following code snippet ". g:prompt_templates[a:ask]
+    let template  = g:prompt_templates[a:ask]
+
+    if len(yanked_text) > 0
+      let template = template . " Given the following code snippet: "
+    endif
+
     let prompt = template . "\n" . yanked_text . "\n" . a:context
   endif
 
@@ -325,8 +332,7 @@ endfunction
 
 for i in range(len(g:promptKeys))
   " Commands to interact with ChatGPT
-  execute 'command! -range -nargs=? ' . Capitalize(g:promptKeys[i]) . ' call SendHighlightedCodeToChatGPT(g:promptKeys[i],<q-args>)'
+  execute 'command! -range -nargs=? ' . Capitalize(g:promptKeys[i]) . " call SendHighlightedCodeToChatGPT('" . g:promptKeys[i] . "',<q-args>)"
 endfor
 
-command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('ask',<q-args>)
 command! GenerateCommit call GenerateCommitMessage()
