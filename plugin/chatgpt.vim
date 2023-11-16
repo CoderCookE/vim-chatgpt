@@ -292,7 +292,7 @@ endfunction
 
 function! s:ChatGPTMenuFilter(id, key)
 
-  if integer(a:key) > 0 && integer(a:key) <= len(g:promptKeys)
+  if a:key > 0 && a:key <= len(g:promptKeys)
     call s:ChatGPTMenuSink(a:id, a:key)
   else " No shortcut, pass to generic filter
     return popup_filter_menu(a:id, a:key)
