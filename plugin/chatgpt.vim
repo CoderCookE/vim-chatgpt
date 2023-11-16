@@ -62,7 +62,8 @@ if exists('g:chat_gpt_custom_prompts')
   call extend(g:prompt_templates, g:chat_gpt_custom_prompts)
 endif
 
-"
+let g:promptKeys = keys(g:prompt_templates)
+
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   let response = a:response
@@ -272,19 +273,19 @@ endfunction
 function! s:ChatGPTMenuSink(id, choice)
   call popup_hide(a:id)
   let choices = {}
-  let promptKeys = keys(g:prompt_templates)
 
-  for index in range(len(promptKeys))
-    let choices[index+1] = promptKeys[index]
+  for index in range(len(g:promptKeys))
+    let choices[index+1] = g:promptKeys[index]
   endfor
 
-  if a:choice > 0 && a:choice <= len(promptKeys)
+  if a:choice > 0 && a:choice <= len(g:promptKeys)
     call SendHighlightedCodeToChatGPT(choices[a:choice], input('Prompt > '))
   endif
 endfunction
 
 function! s:ChatGPTMenuFilter(id, key)
-  if a:key == '1' || a:key == '2' || a:key == '3' || a:key == '4' || a:key == '5'
+
+  if integer(a:key) > 0 && integer(a:key) <= len(g:promptKeys)
     call s:ChatGPTMenuSink(a:id, a:key)
   else " No shortcut, pass to generic filter
     return popup_filter_menu(a:id, a:key)
@@ -294,10 +295,9 @@ endfunction
 function! ChatGPTMenu() range
   echo a:firstline. a:lastline
   let menu_choices = []
-  let promptKeys = keys(g:prompt_templates)
 
-  for index in range(len(promptKeys))
-    call add(menu_choices, string(index + 1) . ". " . promptKeys[index])
+  for index in range(len(g:promptKeys))
+    call add(menu_choices, string(index + 1) . ". " . g:promptKeys[index])
   endfor
 
   call popup_menu(menu_choices, #{
@@ -319,13 +319,14 @@ endfunction
 " Expose mappings
 vnoremap <silent> <Plug>(chatgpt-menu) :call ChatGPTMenu()<CR>
 
-" Commands to interact with ChatGPT
-command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('ask',<q-args>)
-command! -range -nargs=? Explain call SendHighlightedCodeToChatGPT('explain', <q-args>)
-command! -range -nargs=? Review call SendHighlightedCodeToChatGPT('review', <q-args>)
-command! -range -nargs=? Document call SendHighlightedCodeToChatGPT('document', <q-args>)
-command! -range -nargs=? Rewrite call SendHighlightedCodeToChatGPT('rewrite', <q-args>)
-command! -range -nargs=? Test call SendHighlightedCodeToChatGPT('test',<q-args>)
-command! -range -nargs=? Fix call SendHighlightedCodeToChatGPT('fix', <q-args>)
+function! Capitalize(str)
+    return toupper(strpart(a:str, 0, 1)) . tolower(strpart(a:str, 1))
+endfunction
 
+for i in range(len(g:promptKeys))
+  " Commands to interact with ChatGPT
+  execute 'command! -range -nargs=? ' . Capitalize(g:promptKeys[i]) . ' call SendHighlightedCodeToChatGPT(g:promptKeys[i],<q-args>)'
+endfor
+
+command! -range -nargs=? Ask call SendHighlightedCodeToChatGPT('ask',<q-args>)
 command! GenerateCommit call GenerateCommitMessage()
