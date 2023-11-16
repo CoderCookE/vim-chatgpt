@@ -49,6 +49,20 @@ if !exists("g:chat_gpt_split_direction")
   let g:chat_gpt_split_direction = 'horizontal'
 endif
 
+let g:prompt_templates = {
+\ 'rewrite': 'Can you rewrite it more idiomatically?',
+\ 'review': 'Can you provide a code review for?',
+\ 'document': 'Return documentation following language pattern conventions.',
+\ 'explain': 'Can you explain it?',
+\ 'test': 'Can you write a test for it?',
+\ 'fix': 'It has an error I need you to fix.'
+\}
+
+if exists('g:chat_gpt_custom_prompts')
+  call extend(g:prompt_templates, g:chat_gpt_custom_prompts)
+endif
+
+"
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   let response = a:response
@@ -217,23 +231,10 @@ function! SendHighlightedCodeToChatGPT(ask, context)
     let yanked_text = '```' . syntax . "\n" . @@ . "\n" . '```'
   endif
 
-  let prompt_templates = {
-  \ 'rewrite': 'Can you rewrite it more idiomatically?',
-  \ 'review': 'Can you provide a code review for?',
-  \ 'document': 'Return documentation following language pattern conventions.',
-  \ 'explain': 'Can you explain it?',
-  \ 'test': 'Can you write a test for it?',
-  \ 'fix': 'It has an error I need you to fix.'
-  \}
-
-  if exists('g:chat_gpt_custom_prompts')
-    call extend(prompt_templates, g:chat_gpt_custom_prompts)
-  endif
-
   let prompt = a:context . ' ' . "\n" . yanked_text
 
-  if has_key(prompt_templates, a:ask)
-    let template  = "Given the following code snippet ". prompt_templates[a:ask]
+  if has_key(g:prompt_templates, a:ask)
+    let template  = "Given the following code snippet ". g:prompt_templates[a:ask]
     let prompt = template . "\n" . yanked_text . "\n" . a:context
   endif
 
@@ -270,8 +271,14 @@ endfunction
 " Menu for ChatGPT
 function! s:ChatGPTMenuSink(id, choice)
   call popup_hide(a:id)
-  let choices = {1:'Ask', 2:'rewrite', 3:'explain', 4:'test', 5:'review', 6:'document'}
-  if a:choice > 0 && a:choice < 6
+  let choices = {}
+  let promptKeys = keys(g:prompt_templates)
+
+  for index in range(len(promptKeys))
+    let choices[index+1] = promptKeys[index]
+  endfor
+
+  if a:choice > 0 && a:choice <= len(promptKeys)
     call SendHighlightedCodeToChatGPT(choices[a:choice], input('Prompt > '))
   endif
 endfunction
@@ -286,7 +293,14 @@ endfunction
 
 function! ChatGPTMenu() range
   echo a:firstline. a:lastline
-  call popup_menu([ '1. Ask', '2. Rewrite', '3. Explain', '4. Test', '5. Review', '6. Document'], #{
+  let menu_choices = []
+  let promptKeys = keys(g:prompt_templates)
+
+  for index in range(len(promptKeys))
+    call add(menu_choices, string(index + 1) . ". " . promptKeys[index])
+  endfor
+
+  call popup_menu(menu_choices, #{
         \ pos: 'topleft',
         \ line: 'cursor',
         \ col: 'cursor+2',
