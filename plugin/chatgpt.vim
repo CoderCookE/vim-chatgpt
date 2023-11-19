@@ -105,7 +105,6 @@ endfunction
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
   python3 << EOF
-
 def chat_gpt(prompt):
   token_limits = {
     "gpt-3.5-turbo": 4097,
@@ -165,7 +164,7 @@ def chat_gpt(prompt):
   messages.insert(0, systemCtx)
 
   try:
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
       model=model,
       messages=messages,
       max_tokens=max_tokens,
@@ -176,10 +175,10 @@ def chat_gpt(prompt):
 
     # Iterate through the response chunks
     for chunk in response:
-      chunk_session_id = session_id if session_id else chunk["id"]
-      choice = chunk["choices"][0]
-      finish_reason = choice.get("finish_reason")
-      content = choice.get("delta", {}).get("content")
+      chunk_session_id = session_id if session_id else chunk.id
+      choice = chunk.choices[0]
+      finish_reason = choice.finish_reason
+      content = choice.delta.content
 
       # Call DisplayChatGPTResponse with the finish_reason or content
       if finish_reason:
