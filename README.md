@@ -58,29 +58,45 @@ By customizing these options, you can tailor the ChatGPT Vim Plugin to better su
 
 ## Usage
 
-The plugin offers the following commands for interacting with ChatGPT:
+The plugin provides several commands to interact with ChatGPT:
 
-1) `:Ask '<prompt>'` Sends your raw prompt to the ChatGPT API.
+- `Ask`: Ask a question
+- `Rewrite`: Ask the model to rewrite a code snippet more idiomatically
+- `Review`: Request a code review
+- `Document`: Request documentation for a code snippet
+- `Explain`: Ask the model to explain how a code snippet works
+- `Test`: Ask the model to write a test for a code snippet
+- `Fix`: Ask the model to fix an error in a code snippet
 
-To use this command, type :Ask followed by your prompt.
+Each command takes a context as an argument, which can be any text describing the problem or question more specifically.
 
-2) `:<>Review` Sends the highlighted code to ChatGPT and requests a review.
+## Example
 
-To use these commands (:Explain, :Review, or :Rewrite), visually select the lines of code you want to interact with, then type the desired command and press Enter.
+To ask the model to review a code snippet, visually select the code and execute the `Review` command:
 
-4) `:GenerateCommit` Sends entire buffer to ChatGPT and requests a commit messages be generated, then pastes it at the top of the buffer
-To use this command type `git commit -v`  then `:GenerateCommit`
+```vim
+:'<,'>Review 'Can you review this code for me?'
+```
 
-5) `:<>Explain '<context>'` Sends the highlighted code to ChatGPT and requests an explanation, with the option to include additional context.
-5) `:<>Rewrite '<context>'` Sends the highlighted code to ChatGPT and requests a rewritten version, with the option to include additional context.
-5) `:<>Test '<context>'` Sends the highlighted code to ChatGPT and requests it writes a test, with the option to include additional context.
-5) `:<>Fix '<context>'` Sends the highlighted code to ChatGPT and that it fixes any errors it may find, with the option to include additional context.
+The model's response will be displayed in a new buffer.
 
-6) `:<>Document '<context>'` Sends the highlighted code to ChatGPT and requests documentation, with the option to include additional context.
+You can also use `GenerateCommit` command to generate a commit message for the current buffer.
 
-To use this command, visually select the lines of code you want to extend, then type :Extend 'context', where context is any additional information you want to provide.
+## Customization
 
-The ChatGPT response will be displayed in a new buffer.
+You can add custom prompt templates using the `chat_gpt_custom_prompts` variable. This should be a dictionary mapping prompt keys to prompt templates.
+
+For example, to add a 'debug' prompt, you could do:
+
+```vim
+let g:chat_gpt_custom_prompts = {'debug': 'Can you help me debug this code?'}
+```
+
+Afterwards, you can use the `Debug` command like any other command:
+
+```vim
+:'<,'>Debug 'I am encountering an issue where...'
+```
 
 ## Mappings
 
