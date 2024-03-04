@@ -1,0 +1,44 @@
+### How to Contribute to codercooke/vim-chatgpt
+
+1. **Fork the Repository:**
+   - Click on the "Fork" button at the top right corner of the repository page. This will create a copy of the repository in your GitHub account.
+
+2. **Clone the Forked Repository:**
+   - Open your terminal and run the following command to clone the repository to your local machine:
+     ```
+     git clone https://github.com/codercooke/vim-chatgpt.git
+     ```
+
+3. **Create a Branch:**
+   - Create a new branch to work on your changes:
+     ```
+     git checkout -b your-feature-branch
+     ```
+
+4. **Make Changes:**
+   - Make the necessary changes in your local repository using your preferred text editor.
+
+5. **Commit Changes:**
+   - Commit your changes with a clear and concise message:
+     ```
+     git commit -m "Description of your changes"
+     ```
+
+6. **Push Changes:**
+   - Push your changes to your forked repository on GitHub:
+     ```
+     git push origin your-feature-branch
+     ```
+
+7. **Open a Pull Request:**
+   - Visit the original repository on GitHub and click on the "New Pull Request" button.
+   - Choose your branch and provide a descriptive title and summary of your changes.
+   - Submit the pull request.
+
+8. **Review Process:**
+   - We'll review your changes and provide feedback.
+   - Make necessary adjustments based on feedback.
+
+9. **Requirements for Code Changes:**
+   - Ensure the code works in vanilla Vim (not just neovim).
+   - Preserve existing features.
