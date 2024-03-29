@@ -57,22 +57,19 @@ def create_client():
     azure_api_version = safe_vim_eval('g:azure_api_version')
     azure_deployment = safe_vim_eval('g:azure_deployment')
     if api_type == 'azure':
-        assert azure_endpoint and azure_api_version and azure_deployment, "plz set azure_endpint, azure_api_version and azure_deployment"
-        assert api_key, "plz conif api_key"
+        assert azure_endpoint and azure_api_version and azure_deployment, "azure_endpoint, azure_api_version and azure_deployment not set property, please check your settings in `vimrc` or `enviroment`."
+        assert api_key, "api_key not set, please configure your `openai_api_key` in your `vimrc` or `enviroment`"
         client = AzureOpenAI(
             azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
             api_key=api_key,
             api_version=azure_api_version,
         )
-    elif api_type == 'openai':
+    else:
         client = OpenAI(
             base_url=openai_base_url,
             api_key=api_key,
         )
-    else:
-        print(f"Error: unknown api_type {api_type}")
-        raise
     return client
 
 client = create_client()
@@ -202,7 +199,7 @@ def chat_gpt(prompt):
             })
 
   if session_id:
-    content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'.replace("'", "''")
+    content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'.replace("'", "''")
 
     vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), session_id))
     vim.command("redraw")
