@@ -188,7 +188,7 @@ def chat_gpt(prompt):
 
     for line in history:
       if ':\n' in line:
-        role, message = line.split(":\n")
+        role, message = line.split(":\n")
 
         token_count -= len(message)
 
