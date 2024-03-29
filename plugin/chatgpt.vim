@@ -180,7 +180,7 @@ def chat_gpt(prompt):
         break
 
     # Read the lines from the buffer
-    history = "\n".join(buffer).split('\n\n>>>')
+    history = "\n".join(buffer).split('\n\n>>>')
     history.reverse()
 
     # Adding messages to history until token limit is reached
