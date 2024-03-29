@@ -51,12 +51,12 @@ def safe_vim_eval(expression):
 def create_client():
     api_type = safe_vim_eval('g:api_type')
     api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
-
     openai_base_url = safe_vim_eval('g:openai_base_url')
-    azure_endpoint = safe_vim_eval('g:azure_endpoint')
-    azure_api_version = safe_vim_eval('g:azure_api_version')
-    azure_deployment = safe_vim_eval('g:azure_deployment')
+
     if api_type == 'azure':
+        azure_endpoint = safe_vim_eval('g:azure_endpoint')
+        azure_api_version = safe_vim_eval('g:azure_api_version')
+        azure_deployment = safe_vim_eval('g:azure_deployment')
         assert azure_endpoint and azure_api_version and azure_deployment, "azure_endpoint, azure_api_version and azure_deployment not set property, please check your settings in `vimrc` or `enviroment`."
         assert api_key, "api_key not set, please configure your `openai_api_key` in your `vimrc` or `enviroment`"
         client = AzureOpenAI(
