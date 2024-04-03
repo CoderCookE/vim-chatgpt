@@ -36,6 +36,15 @@ pip install openai
 ```
 [Detailed Direction For Installation](https://github.com/CoderCookE/vim-chatgpt/issues/4#issuecomment-1704607737)
 
+Additionally, for Azure gpt user:
+```
+let g:api_type = 'azure'
+let g:chat_gpt_key = 'your_azure_chatgpt_api'
+let g:azure_endpoint = 'your_azure_endpoint'
+let g:azure_deployment = 'your_azure_deployment'
+let g:azure_api_version = '2023-03-15-preview'
+```
+
 ## Customization
 In your `.vimrc` file you set the following options
 
@@ -46,6 +55,7 @@ let g:chat_gpt_session_mode=0
 let g:chat_gpt_temperature = 0.7
 let g:chat_gpt_lang = 'Chinese'
 let g:chat_gpt_split_direction = 'vertical'
+let g:split_ratio=4
 ```
 
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
@@ -55,6 +65,7 @@ let g:chat_gpt_split_direction = 'vertical'
  - g:chat_gpt_lang: Answer in certain langusage, such as Chinese,
  - g:chat_gpt_split_direction: Controls how to open splits, 'vertical' or 'horizontal'. Plugin opens horizontal splits by default.
 By customizing these options, you can tailor the ChatGPT Vim Plugin to better suit your specific needs and preferences.
+ - g:split_ratio: Control the split window size. If set 4, the window size will be 1/4.
 
 ## Usage
 

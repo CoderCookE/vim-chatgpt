@@ -6,28 +6,6 @@ if !has('python3')
   finish
 endif
 
-" Add ChatGPT dependencies
-python3 << EOF
-import sys
-import vim
-import os
-
-try:
-    import openai
-except ImportError:
-    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
-    raise
-
-def safe_vim_eval(expression):
-    try:
-        return vim.eval(expression)
-    except vim.error:
-        return None
-
-openai.api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
-openai.proxy = os.getenv("OPENAI_PROXY")
-EOF
-
 " Set default values for Vim variables if they don't exist
 if !exists("g:chat_gpt_max_tokens")
   let g:chat_gpt_max_tokens = 2000
@@ -48,6 +26,56 @@ endif
 if !exists("g:chat_gpt_split_direction")
   let g:chat_gpt_split_direction = 'horizontal'
 endif
+if !exists("g:split_ratio")
+  let g:split_ratio = 3
+endif
+
+" Add ChatGPT dependencies
+python3 << EOF
+import sys
+import vim
+import os
+
+try:
+    from openai import AzureOpenAI, OpenAI
+except ImportError:
+    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
+    raise
+
+def safe_vim_eval(expression):
+    try:
+        return vim.eval(expression)
+    except vim.error:
+        return None
+
+def create_client():
+    api_type = safe_vim_eval('g:api_type')
+    api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
+    openai_base_url = safe_vim_eval('g:openai_base_url')
+
+    if api_type == 'azure':
+        azure_endpoint = safe_vim_eval('g:azure_endpoint')
+        azure_api_version = safe_vim_eval('g:azure_api_version')
+        azure_deployment = safe_vim_eval('g:azure_deployment')
+        assert azure_endpoint and azure_api_version and azure_deployment, "azure_endpoint, azure_api_version and azure_deployment not set property, please check your settings in `vimrc` or `enviroment`."
+        assert api_key, "api_key not set, please configure your `openai_api_key` in your `vimrc` or `enviroment`"
+        client = AzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            azure_deployment=azure_deployment,
+            api_key=api_key,
+            api_version=azure_api_version,
+        )
+    else:
+        client = OpenAI(
+            base_url=openai_base_url,
+            api_key=api_key,
+        )
+    return client
+
+client = create_client()
+
+EOF
+
 
 let g:prompt_templates = {
 \ 'ask': '',
@@ -74,9 +102,9 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
 
   if !bufexists(chat_gpt_session_id)
     if g:chat_gpt_split_direction ==# 'vertical'
-      silent execute 'vnew '. chat_gpt_session_id
+      silent execute winwidth(0)/g:split_ratio.'vnew '. chat_gpt_session_id
     else
-      silent execute 'new '. chat_gpt_session_id
+      silent execute winheight(0)/g:split_ratio.'new '. chat_gpt_session_id
     endif
     call setbufvar(chat_gpt_session_id, '&buftype', 'nofile')
     call setbufvar(chat_gpt_session_id, '&bufhidden', 'hide')
@@ -89,9 +117,9 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
 
   if bufwinnr(chat_gpt_session_id) == -1
     if g:chat_gpt_split_direction ==# 'vertical'
-      execute 'vsplit ' . chat_gpt_session_id
+      execute winwidth(0)/g:split_ratio.'vsplit ' . chat_gpt_session_id
     else
-      execute 'split ' . chat_gpt_session_id
+      execute winheight(0)/g:split_ratio.'split ' . chat_gpt_session_id
     endif
   endif
 
@@ -180,13 +208,13 @@ def chat_gpt(prompt):
   messages.insert(0, systemCtx)
 
   try:
-    response = openai.chat.completions.create(
-      model=model,
-      messages=messages,
-      max_tokens=max_tokens,
-      stop='',
-      temperature=temperature,
-      stream=True
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stop='',
+        stream=True
     )
 
     # Iterate through the response chunks
