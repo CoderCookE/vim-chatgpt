@@ -77,14 +77,15 @@ client = create_client()
 EOF
 
 
+let code_wrapper_snippet = "Given the following code snippet: "
 let g:prompt_templates = {
 \ 'ask': '',
-\ 'rewrite': 'Can you rewrite this more idiomatically?',
-\ 'review': 'Can you provide a code review?',
-\ 'document': 'Return documentation following language pattern conventions.',
-\ 'explain': 'Can you explain how this works?',
-\ 'test': 'Can you write a test?',
-\ 'fix':  'I have an error I need you to fix.'
+\ 'rewrite': 'Can you rewrite this more idiomatically? ' . code_wrapper_snippet,
+\ 'review': 'Can you provide a code review? ' . code_wrapper_snippet,
+\ 'document': 'Return documentation following language pattern conventions. ' . code_wrapper_snippet,
+\ 'explain': 'Can you explain how this works? ' . code_wrapper_snippet,
+\ 'test': 'Can you write a test? ' . code_wrapper_snippet,
+\ 'fix':  'I have an error I need you to fix. ' . code_wrapper_snippet,
 \}
 
 if exists('g:chat_gpt_custom_prompts')
@@ -268,7 +269,7 @@ function! SendHighlightedCodeToChatGPT(ask, context)
     let template  = g:prompt_templates[a:ask]
 
     if len(yanked_text) > 0
-      let template = template . " Given the following code snippet: "
+      let template = template
     endif
 
     let prompt = template . "\n" . yanked_text . "\n" . a:context
