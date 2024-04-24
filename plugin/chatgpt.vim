@@ -220,6 +220,8 @@ def chat_gpt(prompt):
 
     # Iterate through the response chunks
     for chunk in response:
+      if not chunk.choices:
+        continue
       chunk_session_id = session_id if session_id else chunk.id
       choice = chunk.choices[0]
       finish_reason = choice.finish_reason
