@@ -30,53 +30,6 @@ if !exists("g:split_ratio")
   let g:split_ratio = 3
 endif
 
-" Add ChatGPT dependencies
-python3 << EOF
-import sys
-import vim
-import os
-
-try:
-    from openai import AzureOpenAI, OpenAI
-except ImportError:
-    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
-    raise
-
-def safe_vim_eval(expression):
-    try:
-        return vim.eval(expression)
-    except vim.error:
-        return None
-
-def create_client():
-    api_type = safe_vim_eval('g:api_type')
-    api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
-    openai_base_url = safe_vim_eval('g:openai_base_url')
-
-    if api_type == 'azure':
-        azure_endpoint = safe_vim_eval('g:azure_endpoint')
-        azure_api_version = safe_vim_eval('g:azure_api_version')
-        azure_deployment = safe_vim_eval('g:azure_deployment')
-        assert azure_endpoint and azure_api_version and azure_deployment, "azure_endpoint, azure_api_version and azure_deployment not set property, please check your settings in `vimrc` or `enviroment`."
-        assert api_key, "api_key not set, please configure your `openai_api_key` in your `vimrc` or `enviroment`"
-        client = AzureOpenAI(
-            azure_endpoint=azure_endpoint,
-            azure_deployment=azure_deployment,
-            api_key=api_key,
-            api_version=azure_api_version,
-        )
-    else:
-        client = OpenAI(
-            base_url=openai_base_url,
-            api_key=api_key,
-        )
-    return client
-
-client = create_client()
-
-EOF
-
-
 let code_wrapper_snippet = "Given the following code snippet: "
 let g:prompt_templates = {
 \ 'ask': '',
@@ -150,6 +103,47 @@ endfunction
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
   python3 << EOF
+
+import sys
+import vim
+import os
+
+try:
+    from openai import AzureOpenAI, OpenAI
+except ImportError:
+    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
+    raise
+
+def safe_vim_eval(expression):
+    try:
+        return vim.eval(expression)
+    except vim.error:
+        return None
+
+def create_client():
+    api_type = safe_vim_eval('g:api_type')
+    api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
+    openai_base_url = safe_vim_eval('g:openai_base_url')
+
+    if api_type == 'azure':
+        azure_endpoint = safe_vim_eval('g:azure_endpoint')
+        azure_api_version = safe_vim_eval('g:azure_api_version')
+        azure_deployment = safe_vim_eval('g:azure_deployment')
+        assert azure_endpoint and azure_api_version and azure_deployment, "azure_endpoint, azure_api_version and azure_deployment not set property, please check your settings in `vimrc` or `enviroment`."
+        assert api_key, "api_key not set, please configure your `openai_api_key` in your `vimrc` or `enviroment`"
+        client = AzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            azure_deployment=azure_deployment,
+            api_key=api_key,
+            api_version=azure_api_version,
+        )
+    else:
+        client = OpenAI(
+            base_url=openai_base_url,
+            api_key=api_key,
+        )
+    return client
+
 def chat_gpt(prompt):
   token_limits = {
     "gpt-3.5-turbo": 4097,
@@ -209,6 +203,7 @@ def chat_gpt(prompt):
   messages.insert(0, systemCtx)
 
   try:
+    client = create_client()
     response = client.chat.completions.create(
         model=model,
         messages=messages,
