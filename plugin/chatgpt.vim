@@ -383,3 +383,17 @@ for i in range(len(g:promptKeys))
 endfor
 
 command! GenerateCommit call GenerateCommitMessage()
+
+function! SetPersona(persona)
+    let personas = keys(g:gpt_personas)
+    if index(personas, a:persona) != -1
+      echo 'Persona set to: ' . a:persona
+      let g:chat_persona = a:persona
+    else
+      let g:chat_persona = 'default'
+      echo 'Persona set to default, not found ' . a:persona
+    end
+endfunction
+
+
+command! -nargs=1 GptBe call SetPersona(<q-args>)
