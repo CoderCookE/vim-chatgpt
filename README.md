@@ -95,6 +95,30 @@ You can also use `GenerateCommit` command to generate a commit message for the c
 
 ## Customization
 
+### Custom Personas
+
+To introduce custom personas into the system context, simply define them in your `vimrc` file:
+
+```vim
+let g:chat_gpt_custom_persona = {'neptune': 'You are an expert in all things Graph databases'}
+```
+
+With the custom persona defined, you can switch to it using the following command:
+
+```vim
+:GptBe neptune
+```
+
+If you try to switch to a non-existent persona, the plugin will default to the preconfigured `default` persona.
+
+You can also set a persona to be loaded by default when Vim starts, by setting it in your `vimrc`:
+
+```vim
+let g:chat_persona='neptune'
+```
+
+### Commands
+
 You can add custom prompt templates using the `chat_gpt_custom_prompts` variable. This should be a dictionary mapping prompt keys to prompt templates.
 
 For example, to add a 'debug' prompt, you could do:
