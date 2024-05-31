@@ -16,7 +16,7 @@ if !exists("g:chat_gpt_temperature")
 endif
 
 if !exists("g:chat_gpt_model")
-  let g:chat_gpt_model = 'gpt-3.5-turbo'
+  let g:chat_gpt_model = 'gpt-4o'
 endif
 
 if !exists("g:chat_gpt_lang")
@@ -26,8 +26,13 @@ endif
 if !exists("g:chat_gpt_split_direction")
   let g:chat_gpt_split_direction = 'horizontal'
 endif
+
 if !exists("g:split_ratio")
   let g:split_ratio = 3
+endif
+
+if !exists("g:chat_persona")
+  let g:chat_persona = 'default'
 endif
 
 let code_wrapper_snippet = "Given the following code snippet: "
@@ -47,6 +52,14 @@ endif
 
 let g:promptKeys = keys(g:prompt_templates)
 
+let g:gpt_personas = {
+\ "default": 'You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using.',
+\}
+
+if exists('g:chat_gpt_custom_persona')
+  call extend(g:gpt_personas, g:chat_gpt_custom_persona)
+endif
+"
 " Function to show ChatGPT responses in a new buffer
 function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   let response = a:response
@@ -144,6 +157,7 @@ def create_client():
         )
     return client
 
+
 def chat_gpt(prompt):
   token_limits = {
     "gpt-3.5-turbo": 4097,
@@ -153,6 +167,7 @@ def chat_gpt(prompt):
     "gpt-4-turbo": 128000,
     "gpt-4-turbo-preview": 128000,
     "gpt-4-32k": 32768,
+    "gpt-4o": 128000,
   }
 
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
@@ -161,7 +176,10 @@ def chat_gpt(prompt):
   lang = str(vim.eval('g:chat_gpt_lang'))
   resp = lang and f" And respond in {lang}." or ""
 
-  systemCtx = {"role": "system", "content": f"You are a helpful expert programmer we are working together to solve complex coding challenges, and I need your help. Please make sure to wrap all code blocks in ``` annotate the programming language you are using. {resp}"}
+  personas = dict(vim.eval('g:gpt_personas'))
+  persona  = str(vim.eval('g:chat_persona'))
+
+  systemCtx = {"role": "system", "content": f"{personas[persona]} {resp}"}
   messages = []
   session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1 else None
 
@@ -366,3 +384,17 @@ for i in range(len(g:promptKeys))
 endfor
 
 command! GenerateCommit call GenerateCommitMessage()
+
+function! SetPersona(persona)
+    let personas = keys(g:gpt_personas)
+    if index(personas, a:persona) != -1
+      echo 'Persona set to: ' . a:persona
+      let g:chat_persona = a:persona
+    else
+      let g:chat_persona = 'default'
+      echo 'Persona set to default, not found ' . a:persona
+    end
+endfunction
+
+
+command! -nargs=1 GptBe call SetPersona(<q-args>)
