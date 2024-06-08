@@ -20,7 +20,7 @@ if !exists("g:chat_gpt_model")
 endif
 
 if !exists("g:chat_gpt_lang")
-  let g:chat_gpt_lang = ''
+  let g:chat_gpt_lang = v:none
 endif
 
 if !exists("g:chat_gpt_split_direction")
@@ -33,6 +33,10 @@ endif
 
 if !exists("g:chat_persona")
   let g:chat_persona = 'default'
+endif
+
+if !exists("g:chat_gpt_stop")
+  let g:chat_gpt_stop = v:none
 endif
 
 let code_wrapper_snippet = "Given the following code snippet: "
@@ -78,6 +82,7 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
     call setbufvar(chat_gpt_session_id, '&swapfile', 0)
     setlocal modifiable
     setlocal wrap
+    setlocal linebreak
     call setbufvar(chat_gpt_session_id, '&ft', 'markdown')
     call setbufvar(chat_gpt_session_id, '&syntax', 'markdown')
   endif
@@ -174,6 +179,7 @@ def chat_gpt(prompt):
   model = str(vim.eval('g:chat_gpt_model'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
   lang = str(vim.eval('g:chat_gpt_lang'))
+  stop = str(vim.eval('g:chat_gpt_stop'))
   resp = lang and f" And respond in {lang}." or ""
 
   personas = dict(vim.eval('g:gpt_personas'))
@@ -228,7 +234,7 @@ def chat_gpt(prompt):
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        stop='',
+        stop=stop,
         stream=True
     )
 
