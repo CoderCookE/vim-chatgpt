@@ -78,6 +78,7 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
     call setbufvar(chat_gpt_session_id, '&swapfile', 0)
     setlocal modifiable
     setlocal wrap
+    setlocal linebreak
     call setbufvar(chat_gpt_session_id, '&ft', 'markdown')
     call setbufvar(chat_gpt_session_id, '&syntax', 'markdown')
   endif
