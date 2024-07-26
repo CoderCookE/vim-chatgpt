@@ -136,7 +136,7 @@ def safe_vim_eval(expression):
 def create_client():
     api_type = safe_vim_eval('g:api_type')
     api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
-    openai_base_url = safe_vim_eval('g:openai_base_url')
+    openai_base_url = os.getenv('OPENAI_PROXY') or os.getenv('OPENAI_API_BASE') or safe_vim_eval('g:openai_base_url')
 
     if api_type == 'azure':
         azure_endpoint = safe_vim_eval('g:azure_endpoint')
