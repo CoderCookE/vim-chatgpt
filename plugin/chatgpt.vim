@@ -276,15 +276,15 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   let [line_start, col_start] = getpos("'<")[1:2]
   let [line_end, col_end] = getpos("'>")[1:2]
 
-  " Yank the visually selected text into the unnamed register
-  execute 'normal! ' . line_start . 'G' . col_start . '|v' . line_end . 'G' . col_end . '|y'
-
-  " Send the yanked text to ChatGPT
-  let yanked_text = ''
-  let syntax = &syntax
-
+  " Check if a selection is made
   if (col_end - col_start > 0) || (line_end - line_start > 0)
-    let yanked_text = '```' . syntax . "\n" . @@ . "\n" . '```'
+    execute 'normal! ' . line_start . 'G' . col_start . '|v' . line_end . 'G' . col_end . '|y'
+    let yanked_text = '```' . &syntax . "\n" . @@ . "\n" . '```'
+  else
+    " Reset line_start and line_end to avoid retaining values
+    let line_start = 0
+    let line_end = 0
+    let yanked_text = ''
   endif
 
   let prompt = a:context . ' ' . "\n" . yanked_text
@@ -311,7 +311,6 @@ function! SendHighlightedCodeToChatGPT(ask, context)
   call setpos('.', save_cursor)
 
 endfunction
-"
 " Function to generate a commit message
 function! GenerateCommitMessage()
   " Save the current position and yank register
