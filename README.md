@@ -56,7 +56,6 @@ let g:chat_gpt_temperature = 0.7
 let g:chat_gpt_lang = 'Chinese'
 let g:chat_gpt_split_direction = 'vertical'
 let g:split_ratio=4
-let g:chat_gpt_stop = ' '
 ```
 
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
@@ -67,7 +66,6 @@ let g:chat_gpt_stop = ' '
  - g:chat_gpt_split_direction: Controls how to open splits, 'vertical' or 'horizontal'. Plugin opens horizontal splits by default.
 By customizing these options, you can tailor the ChatGPT Vim Plugin to better suit your specific needs and preferences.
  - g:split_ratio: Control the split window size. If set 4, the window size will be 1/4.
- - g:chat_gpt_stop: Stop sequence to send to the ChatGPT API.  Use the stop sequence to only return tokens leading up to the specified stop sequence.  Specifying "World" will cause the API to only return "Hellow" if the output would have been "Hello World!"  The default is to not set a stop sequence.
 
 ## Usage
 
