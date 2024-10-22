@@ -56,7 +56,6 @@ let g:chat_gpt_temperature = 0.7
 let g:chat_gpt_lang = 'Chinese'
 let g:chat_gpt_split_direction = 'vertical'
 let g:split_ratio=4
-let g:chat_gpt_stop = ' '
 ```
 
  - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
