@@ -35,10 +35,6 @@ if !exists("g:chat_persona")
   let g:chat_persona = 'default'
 endif
 
-if !exists("g:chat_gpt_stop")
-  let g:chat_gpt_stop = v:none
-endif
-
 let code_wrapper_snippet = "Given the following code snippet: "
 let g:prompt_templates = {
 \ 'ask': '',
@@ -180,7 +176,6 @@ def chat_gpt(prompt):
   model = str(vim.eval('g:chat_gpt_model'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
   lang = str(vim.eval('g:chat_gpt_lang'))
-  stop = str(vim.eval('g:chat_gpt_stop'))
   resp = lang and f" And respond in {lang}." or ""
 
   personas = dict(vim.eval('g:gpt_personas'))
@@ -235,7 +230,6 @@ def chat_gpt(prompt):
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        stop=stop,
         stream=True
     )
 
