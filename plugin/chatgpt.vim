@@ -223,38 +223,34 @@ def chat_gpt(prompt):
   messages.append({"role": "user", "content": prompt})
   messages.insert(0, systemCtx)
 
-  try:
-    client = create_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        stream=True
-    )
+  client = create_client()
+  response = client.chat.completions.create(
+      model=model,
+      messages=messages,
+      temperature=temperature,
+      max_tokens=max_tokens,
+      stream=True
+  )
 
-    # Iterate through the response chunks
-    for chunk in response:
-      # newer Azure API responses contain empty chunks in the first streamed
-      # response
-      if not chunk.choices:
-          continue
+  # Iterate through the response chunks
+  for chunk in response:
+    # newer Azure API responses contain empty chunks in the first streamed
+    # response
+    if not chunk.choices:
+        continue
 
-      chunk_session_id = session_id if session_id else chunk.id
-      choice = chunk.choices[0]
-      finish_reason = choice.finish_reason
+    chunk_session_id = session_id if session_id else chunk.id
+    choice = chunk.choices[0]
+    finish_reason = choice.finish_reason
+
+    # Call DisplayChatGPTResponse with the finish_reason or content
+    if finish_reason:
+      vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
+    elif choice.delta:
       content = choice.delta.content
+      vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
 
-      # Call DisplayChatGPTResponse with the finish_reason or content
-      if finish_reason:
-        vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
-      elif content:
-        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
-
-      vim.command("redraw")
-
-  except Exception as e:
-    print("Error:", str(e))
+    vim.command("redraw")
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
