@@ -243,16 +243,15 @@ def chat_gpt(prompt):
       chunk_session_id = session_id if session_id else chunk.id
       choice = chunk.choices[0]
       finish_reason = choice.finish_reason
-      content = choice.delta.content
 
       # Call DisplayChatGPTResponse with the finish_reason or content
       if finish_reason:
         vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
-      elif content:
+      elif choice.delta:
+        content = choice.delta.content
         vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
 
       vim.command("redraw")
-
   except Exception as e:
     print("Error:", str(e))
 
