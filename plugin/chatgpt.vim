@@ -176,7 +176,7 @@ def chat_gpt(prompt):
   model = str(vim.eval('g:chat_gpt_model'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
   lang = str(vim.eval('g:chat_gpt_lang'))
-  resp = lang and f" And respond in {lang}." or ""
+  resp = f" And respond in {lang}." if lang != 'None' else ""
 
   personas = dict(vim.eval('g:gpt_personas'))
   persona  = str(vim.eval('g:chat_persona'))
