@@ -20,7 +20,11 @@ if !exists("g:chat_gpt_model")
 endif
 
 if !exists("g:chat_gpt_lang")
-  let g:chat_gpt_lang = v:none
+  if has('nvim')
+    let g:chat_gpt_lang = v:null
+  else
+    let g:chat_gpt_lang = v:none
+  endif
 endif
 
 if !exists("g:chat_gpt_split_direction")
@@ -403,3 +407,29 @@ endfunction
 
 
 command! -nargs=1 GptBe call SetPersona(<q-args>)
+
+" Menu for ChatGPT using inputlist for Neovim
+if has('nvim')
+  function! s:ChatGPTMenuSink(choice)
+    let choices = {}
+
+    for index in range(len(g:promptKeys))
+      let choices[index+1] = g:promptKeys[index]
+    endfor
+
+    if a:choice > 0 && a:choice <= len(g:promptKeys)
+      call SendHighlightedCodeToChatGPT(choices[a:choice], input('Prompt > '))
+    endif
+  endfunction
+
+  function! ChatGPTMenu() range
+    let menu_choices = ['ChatGPT-Vim', '-----------']
+
+    for index in range(len(g:promptKeys))
+      call add(menu_choices, string(index + 1) . ". " . Capitalize(g:promptKeys[index]))
+    endfor
+
+    let choice = inputlist(menu_choices)
+    call s:ChatGPTMenuSink(choice)
+  endfunction
+endif
