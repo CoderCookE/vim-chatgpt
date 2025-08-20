@@ -170,6 +170,10 @@ def chat_gpt(prompt):
     "gpt-4-32k": 32768,
     "gpt-4o": 128000,
     "gpt-4o-mini": 128000,
+    "o1": 200000,
+    "o3": 200000,
+    "o3-mini": 200000,
+    "o4-mini": 200000,
   }
 
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
@@ -225,13 +229,21 @@ def chat_gpt(prompt):
 
   try:
     client = create_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
+    chat_parameters = {
+          'model':model,
+          'messages':messages,
+          'stream':True
+    }
+    if model.startswith('gpt-'):
+      chat_parameters.update(
         temperature=temperature,
-        max_tokens=max_tokens,
-        stream=True
-    )
+        max_tokens=max_tokens
+      )
+    else:
+      chat_parameters.update(
+        max_completion_tokens=max_tokens
+      )
+    response = client.chat.completions.create(**chat_parameters)
 
     # Iterate through the response chunks
     for chunk in response:
