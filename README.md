@@ -349,6 +349,74 @@ The model's response will be displayed in a new buffer.
 
 You can also use `GenerateCommit` command to generate a commit message for the current buffer.
 
+## Project Context
+
+The plugin can maintain project context to make the AI smarter about your specific codebase. This context is automatically loaded into every conversation.
+
+### Generating Project Context
+
+Run this command to have the AI analyze your project and create a context file:
+
+```vim
+:GptGenerateContext
+```
+
+The AI will:
+1. Explore your project using available tools (list directories, read README, package files, etc.)
+2. Analyze the project structure and technology stack
+3. Create a context summary at `.vim-chatgpt/context.md`
+
+### Context File Structure
+
+The generated context file contains:
+- **Project Name**: Identified from the directory or metadata
+- **Type**: Kind of project (web app, library, CLI tool, etc.)
+- **Purpose**: What the project does
+- **Tech Stack**: Technologies, frameworks, and key dependencies
+- **Structure**: Overview of directory layout
+- **Key Files**: Important entry points and configuration
+
+### Manual Editing
+
+You can manually edit `.vim-chatgpt/context.md` to:
+- Add specific details the AI should know
+- Highlight important patterns or conventions
+- Document architectural decisions
+- Note areas that need work
+
+### Example Context File
+
+```markdown
+# Project: vim-chatgpt
+
+## Type
+Vim plugin
+
+## Purpose
+Brings AI language model capabilities into Vim editor for code assistance
+
+## Tech Stack
+- VimScript
+- Python 3
+- Multiple AI providers (OpenAI, Anthropic, Google, Ollama, OpenRouter)
+
+## Structure
+- plugin/chatgpt.vim - Main plugin file with VimScript and embedded Python
+- README.md - Documentation
+
+## Key Files
+- chatgpt.vim - Contains all functionality including provider abstraction and tool framework
+```
+
+### How It Works
+
+When you start any AI conversation:
+1. Plugin checks for `.vim-chatgpt/context.md` in the current working directory
+2. If found, the context is loaded into the system message
+3. The AI has this context for every request in that project
+
+This means when you ask "What is this project?", the AI already knows!
+
 ## Customization
 
 ### Custom Personas

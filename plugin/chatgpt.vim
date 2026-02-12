@@ -1273,6 +1273,18 @@ def chat_gpt(prompt):
   persona = str(vim.eval('g:chat_persona'))
   system_message = f"{personas[persona]} {resp}"
 
+  # Load project context if available
+  context_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'context.md')
+  if os.path.exists(context_file):
+    try:
+      with open(context_file, 'r', encoding='utf-8') as f:
+        project_context = f.read().strip()
+        if project_context:
+          system_message += f"\n\n## Project Context\n\n{project_context}"
+    except Exception as e:
+      # Silently ignore errors reading context file
+      pass
+
   # Add planning instruction if tools are enabled and plan approval required
   enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
   require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
@@ -1547,6 +1559,53 @@ function! GenerateCommitMessage()
   call ChatGPT(prompt)
 endfunction
 
+" Function to generate project context
+function! GenerateProjectContext()
+  " Create a prompt to generate project context
+  let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:
+
+1. Get the working directory
+2. List the root directory contents
+3. Look for README files, package.json, requirements.txt, Cargo.toml, go.mod, pom.xml, or other project metadata files
+4. Read key configuration/metadata files to understand the project
+
+Then write a summary in this format:
+
+# Project: [Name]
+
+## Type
+[e.g., Python web application, JavaScript library, Rust CLI tool, etc.]
+
+## Purpose
+[Brief description of what this project does]
+
+## Tech Stack
+[Key technologies, frameworks, and dependencies]
+
+## Structure
+[Brief overview of directory structure and key files]
+
+## Key Files
+[List important entry points, config files, etc.]
+
+Save this context to .vim-chatgpt/context.md so I understand this project in future conversations.
+
+Important: Actually use the create_file tool to save the context to .vim-chatgpt/context.md'
+
+  " Use session mode 0 for one-time response
+  let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+  let g:chat_gpt_session_mode = 0
+
+  echo "Generating project context... (this will use AI tools to explore your project)"
+  call ChatGPT(prompt)
+
+  " Restore session mode
+  let g:chat_gpt_session_mode = save_session_mode
+
+  echo "\nProject context generated at .vim-chatgpt/context.md"
+  echo "You can edit this file to customize the project context."
+endfunction
+
 " Menu for ChatGPT
 function! s:ChatGPTMenuSink(id, choice)
   call popup_hide(a:id)
@@ -1605,6 +1664,7 @@ for i in range(len(g:promptKeys))
 endfor
 
 command! GenerateCommit call GenerateCommitMessage()
+command! GptGenerateContext call GenerateProjectContext()
 
 function! SetPersona(persona)
     let personas = keys(g:gpt_personas)
