@@ -6,18 +6,128 @@ if !has('python3')
   finish
 endif
 
-" Function to check if context file exists and auto-generate if not
+" Function to check if context file exists and auto-generate if not or if old
 function! s:check_and_generate_context()
     let context_file = getcwd() . '/.vim-chatgpt/context.md'
+    let should_generate = 0
+
     if !filereadable(context_file)
         " Auto-generate context file if it doesn't exist
         echo "No project context found. Generating automatically..."
+        let should_generate = 1
+    else
+        " Check if file is older than 24 hours
+        let file_time = getftime(context_file)
+        let current_time = localtime()
+        let age_in_hours = (current_time - file_time) / 3600
+
+        if age_in_hours > 24
+            echo "Project context is " . float2nr(age_in_hours) . " hours old. Regenerating..."
+            let should_generate = 1
+        endif
+    endif
+
+    if should_generate
+        " Save current settings
+        let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+        let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+        let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+
+        " Disable session mode, plan approval, and suppress display for auto-generation
+        let g:chat_gpt_session_mode = 0
+        let g:chat_gpt_require_plan_approval = 0
+        let g:chat_gpt_suppress_display = 1
+
         call GenerateProjectContext()
+
+        " Restore settings
+        let g:chat_gpt_session_mode = save_session_mode
+        let g:chat_gpt_require_plan_approval = save_plan_approval
+        let g:chat_gpt_suppress_display = save_suppress_display
     endif
 endfunction
 
-" Call the check function during plugin initialization
-call s:check_and_generate_context()
+" Function to extract cutoff byte position from summary metadata
+function! s:get_summary_cutoff()
+    let summary_file = getcwd() . '/.vim-chatgpt/summary.md'
+
+    if !filereadable(summary_file)
+        return 0
+    endif
+
+    " Read first few lines looking for metadata
+    let lines = readfile(summary_file, '', 10)
+    for line in lines
+        if line =~ 'cutoff_byte:'
+            let match = matchstr(line, 'cutoff_byte:\s*\zs\d\+')
+            if match != ''
+                return str2nr(match)
+            endif
+        endif
+    endfor
+
+    return 0
+endfunction
+
+" Function to check if summary needs updating based on history size
+function! s:check_and_update_summary()
+    let history_file = getcwd() . '/.vim-chatgpt/history.txt'
+    let summary_file = getcwd() . '/.vim-chatgpt/summary.md'
+
+    " Only check if history file exists
+    if !filereadable(history_file)
+        return
+    endif
+
+    " Get history file size
+    let file_size = getfsize(history_file)
+    let cutoff_byte = s:get_summary_cutoff()
+    let compaction_size = g:chat_gpt_summary_compaction_size
+    let new_content_size = file_size - cutoff_byte
+
+    " Check if we should update:
+    " 1. New content since last summary exceeds compaction size
+    " 2. OR summary doesn't exist yet and history has content
+    if new_content_size > compaction_size
+        echo "Conversation grew by " . float2nr(new_content_size / 1024) . "KB. Compacting into summary..."
+
+        " Save current settings
+        let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+        let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+        let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+
+        " Disable session mode, plan approval, and suppress display for auto-generation
+        let g:chat_gpt_session_mode = 0
+        let g:chat_gpt_require_plan_approval = 0
+        let g:chat_gpt_suppress_display = 1
+
+        call GenerateConversationSummary()
+
+        " Restore settings
+        let g:chat_gpt_session_mode = save_session_mode
+        let g:chat_gpt_require_plan_approval = save_plan_approval
+        let g:chat_gpt_suppress_display = save_suppress_display
+    elseif !filereadable(summary_file) && file_size > 1024
+        echo "No conversation summary found. Generating from history..."
+
+        " Save current settings
+        let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+        let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+        let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+
+        " Disable session mode, plan approval, and suppress display for auto-generation
+        let g:chat_gpt_session_mode = 0
+        let g:chat_gpt_require_plan_approval = 0
+        let g:chat_gpt_suppress_display = 1
+
+        call GenerateConversationSummary()
+
+        " Restore settings
+        let g:chat_gpt_session_mode = save_session_mode
+        let g:chat_gpt_require_plan_approval = save_plan_approval
+        let g:chat_gpt_suppress_display = save_suppress_display
+    endif
+endfunction
 
 " Set default values for Vim variables if they don't exist
 if !exists("g:chat_gpt_max_tokens")
@@ -56,6 +166,15 @@ endif
 " Require plan approval before tool execution (default: enabled when tools are enabled)
 if !exists("g:chat_gpt_require_plan_approval")
   let g:chat_gpt_require_plan_approval = 1
+endif
+
+" Conversation history compaction settings
+if !exists("g:chat_gpt_summary_compaction_size")
+  let g:chat_gpt_summary_compaction_size = 51200  " 50KB - trigger summary update
+endif
+
+if !exists("g:chat_gpt_recent_history_size")
+  let g:chat_gpt_recent_history_size = 20480  " 20KB - keep this much recent history uncompressed
 endif
 
 " Provider selection (default to openai for backward compatibility)
@@ -1309,6 +1428,7 @@ def chat_gpt(prompt):
   temperature = float(vim.eval('g:chat_gpt_temperature'))
   lang = str(vim.eval('g:chat_gpt_lang'))
   resp = f" And respond in {lang}." if lang != 'None' else ""
+  suppress_display = int(vim.eval('exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0'))
 
   # Get model from provider
   model = provider.get_model()
@@ -1330,12 +1450,32 @@ def chat_gpt(prompt):
       # Silently ignore errors reading context file
       pass
 
+  # Load conversation summary if available and extract cutoff position
+  summary_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'summary.md')
+  summary_cutoff_byte = 0
+  if os.path.exists(summary_file):
+    try:
+      with open(summary_file, 'r', encoding='utf-8') as f:
+        conversation_summary = f.read().strip()
+
+        # Extract cutoff_byte from metadata if present
+        import re
+        cutoff_match = re.search(r'cutoff_byte:\s*(\d+)', conversation_summary)
+        if cutoff_match:
+          summary_cutoff_byte = int(cutoff_match.group(1))
+
+        if conversation_summary:
+          system_message += f"\n\n## Conversation Summary & User Preferences\n\n{conversation_summary}"
+    except Exception as e:
+      # Silently ignore errors reading summary file
+      pass
+
   # Add planning instruction if tools are enabled and plan approval required
   enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
   require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
 
   if enable_tools and require_plan_approval and provider.supports_tools():
-    system_message += "\n\nWhen you need to use tools, first create a clear, step-by-step plan explaining what you will do and which tools you'll use. Present this plan to the user for approval before proceeding with tool execution."
+    system_message += "\n\nWhen you need to use tools, first create a clear, step-by-step plan explaining what you will do and which tools you'll use. Present this plan to the user for approval before proceeding with tool execution.\n\nAfter each tool execution, evaluate the results:\n- If the result is unexpected or requires a different approach, explain why and present a REVISED PLAN for approval\n- If the result is as expected, continue with the next step\n- If the task is complete, summarize what was accomplished\n\nStart any revised plan with '=== REVISED PLAN ===' so it can be clearly identified."
 
   # Session history management
   history = []
@@ -1356,7 +1496,10 @@ def chat_gpt(prompt):
   # Load history from file
   if history_file and os.path.exists(history_file):
     try:
+      # Read only from cutoff position onwards (recent uncompressed history)
       with open(history_file, 'r', encoding='utf-8') as f:
+        if summary_cutoff_byte > 0:
+          f.seek(summary_cutoff_byte)
         history_content = f.read()
 
       # Parse history (same format as before)
@@ -1382,7 +1525,7 @@ def chat_gpt(prompt):
       pass
 
   # Display initial prompt in session
-  if session_id:
+  if session_id and not suppress_display:
     content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'
 
     vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), session_id))
@@ -1406,46 +1549,52 @@ def chat_gpt(prompt):
     chunk_session_id = session_id if session_id else 'gpt-response'
     max_tool_iterations = 15  # Maximum total iterations
     tool_iteration = 0
-    batch_size = 3  # Execute tools in batches of 3
-    batch_iteration = 0
     plan_approved = not require_plan_approval  # Skip approval if not required
-    accumulated_plan = ""  # Accumulate plan text for approval
+    accumulated_content = ""  # Accumulate content for each iteration
 
     while tool_iteration < max_tool_iterations:
       tool_calls_to_process = None
+      accumulated_content = ""  # Reset for each iteration
 
       for content, finish_reason, tool_calls in provider.stream_chat(messages, model, temperature, max_tokens, tools):
         # Display content as it streams
         if content:
-          # Accumulate plan text on first iteration (before approval)
-          if tool_iteration == 0 and not plan_approved:
-            accumulated_plan += content
+          # Accumulate content to detect plan revisions
+          accumulated_content += content
 
-          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
-          vim.command("redraw")
+          if not suppress_display:
+            vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
+            vim.command("redraw")
 
         # Handle finish
         if finish_reason:
           if tool_calls:
             tool_calls_to_process = tool_calls
           else:
-            vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
-            vim.command("redraw")
+            if not suppress_display:
+              vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
+              vim.command("redraw")
 
       # If no tool calls, we're done
       if not tool_calls_to_process:
         break
 
-      # Request plan approval on first tool use
-      if not plan_approved and tool_iteration == 0:
-        # Show a separator and the accumulated plan
+      # Detect revised plan or initial plan
+      is_initial_plan = (tool_iteration == 0 and not plan_approved)
+      is_revised_plan = ("=== REVISED PLAN ===" in accumulated_content or "REVISED PLAN" in accumulated_content)
+      needs_approval = require_plan_approval and (is_initial_plan or is_revised_plan)
+
+      # Request approval for initial or revised plans
+      if needs_approval:
+        # Show a separator and the plan
+        plan_type = "REVISED PLAN" if is_revised_plan else "INITIAL PLAN"
         plan_display = "\\n\\n" + "="*60 + "\\n"
-        plan_display += "PLAN FOR APPROVAL:\\n"
+        plan_display += f"{plan_type} FOR APPROVAL:\\n"
         plan_display += "="*60 + "\\n"
 
-        if accumulated_plan.strip():
+        if accumulated_content.strip():
           # Show the plan that was just presented
-          plan_display += accumulated_plan.strip()
+          plan_display += accumulated_content.strip()
         else:
           # If no plan was provided, list the tools that will be called
           plan_display += "AI wants to use the following tools:\\n"
@@ -1454,37 +1603,30 @@ def chat_gpt(prompt):
 
         plan_display += "\\n" + "="*60 + "\\n\\n"
 
-        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
-        vim.command("redraw")
+        if not suppress_display:
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
+          vim.command("redraw")
 
-        approval = vim.eval("input('Approve plan? [y]es to proceed, [n]o to cancel: ')")
+        approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
+        approval = vim.eval(f"input('{approval_prompt}')")
 
         if approval.lower() not in ['y', 'yes']:
-          vim.command("call DisplayChatGPTResponse('\\n\\n[Plan cancelled by user]\\n', '', '{0}')".format(chunk_session_id))
-          vim.command("redraw")
+          if not suppress_display:
+            vim.command("call DisplayChatGPTResponse('\\n\\n[Plan cancelled by user]\\n', '', '{0}')".format(chunk_session_id))
+            vim.command("redraw")
           break
 
         plan_approved = True
-        vim.command("call DisplayChatGPTResponse('\\n\\n[Plan approved. Executing...]\\n', '', '{0}')".format(chunk_session_id))
-        vim.command("redraw")
-
-      # Check if we need user approval to continue (every 3 iterations after the first batch)
-      if plan_approved and batch_iteration > 0 and batch_iteration % batch_size == 0:
-        vim.command("call DisplayChatGPTResponse('\\n\\n[Completed {0} tool iterations. Continue?]\\n', '', '{1}')".format(batch_iteration, chunk_session_id))
-        vim.command("redraw")
-
-        continue_approval = vim.eval("input('[y]es to continue, [n]o to stop: ')")
-
-        if continue_approval.lower() not in ['y', 'yes']:
-          vim.command("call DisplayChatGPTResponse('\\n\\n[Execution stopped by user]\\n', '', '{0}')".format(chunk_session_id))
+        if not suppress_display:
+          approval_msg = "[Revised plan approved. Continuing...]" if is_revised_plan else "[Plan approved. Executing...]"
+          vim.command("call DisplayChatGPTResponse('\\n\\n{0}\\n', '', '{1}')".format(approval_msg, chunk_session_id))
           vim.command("redraw")
-          break
 
       # Execute tools and add results to messages
       tool_iteration += 1
-      batch_iteration += 1
-      vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools... (iteration {0})]\\n', '', '{1}')".format(tool_iteration, chunk_session_id))
-      vim.command("redraw")
+      if not suppress_display:
+        vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools... (iteration {0})]\\n', '', '{1}')".format(tool_iteration, chunk_session_id))
+        vim.command("redraw")
 
       for tool_call in tool_calls_to_process:
         tool_name = tool_call['name']
@@ -1495,9 +1637,10 @@ def chat_gpt(prompt):
         tool_result = execute_tool(tool_name, tool_args)
 
         # Display tool usage in session
-        tool_display = f"\\n[Tool: {tool_name}({json.dumps(tool_args)})]\\n{tool_result}\\n"
-        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
-        vim.command("redraw")
+        if not suppress_display:
+          tool_display = f"\\n[Tool: {tool_name}({json.dumps(tool_args)})]\\n{tool_result}\\n"
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
+          vim.command("redraw")
 
         # Add tool call and result to messages for next iteration
         # Format depends on provider
@@ -1638,18 +1781,89 @@ function! GenerateProjectContext()
   let prompt .= "\n\nSave this context to .vim-chatgpt/context.md so I understand this project in future conversations."
   let prompt .= "\n\nImportant: Actually use the create_file tool to save the context to .vim-chatgpt/context.md"
 
-  " Use session mode 0 for one-time response
+  " Use session mode 0 for one-time response, disable plan approval and suppress display
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+  let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+  let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
   let g:chat_gpt_session_mode = 0
+  let g:chat_gpt_require_plan_approval = 0
+  let g:chat_gpt_suppress_display = 1
 
   echo "Generating project context... (this will use AI tools to explore your project)"
   call ChatGPT(prompt)
 
-  " Restore session mode
+  " Restore settings
   let g:chat_gpt_session_mode = save_session_mode
+  let g:chat_gpt_require_plan_approval = save_plan_approval
+  let g:chat_gpt_suppress_display = save_suppress_display
 
   echo "\nProject context generated at .vim-chatgpt/context.md"
   echo "You can edit this file to customize the project context."
+endfunction
+
+" Function to generate conversation summary
+function! GenerateConversationSummary()
+  " Calculate byte positions for compaction
+  let history_file = getcwd() . '/.vim-chatgpt/history.txt'
+  let summary_file = getcwd() . '/.vim-chatgpt/summary.md'
+
+  let old_cutoff = s:get_summary_cutoff()
+  let history_size = getfsize(history_file)
+  let recent_window = g:chat_gpt_recent_history_size
+  let new_cutoff = max([0, history_size - recent_window])
+
+  " Create a prompt to analyze conversation history and generate summary
+  let prompt = 'Please analyze our conversation history and create a comprehensive summary.'
+  let prompt .= "\n\nIMPORTANT: Use the read_file tool to read .vim-chatgpt/history.txt"
+
+  if old_cutoff > 0
+    let prompt .= "\n\nThis is a summary UPDATE (compaction). The current summary covers conversation up to byte " . old_cutoff . "."
+    let prompt .= "\nYou need to read and summarize the portion from byte " . old_cutoff . " to byte " . new_cutoff . "."
+    let prompt .= "\nFirst use read_file to read the EXISTING summary from .vim-chatgpt/summary.md, then read the NEW content from .vim-chatgpt/history.txt."
+    let prompt .= "\nMerge the existing summary with insights from the new content."
+  else
+    let prompt .= "\n\nThis is the FIRST summary. Read .vim-chatgpt/history.txt and summarize everything up to byte " . new_cutoff . "."
+  endif
+
+  let prompt .= "\n\nCreate a summary in this format:"
+  let prompt .= "\n\n<!-- SUMMARY_METADATA"
+  let prompt .= "\ncutoff_byte: " . new_cutoff
+  let prompt .= "\nlast_updated: " . strftime("%Y-%m-%d")
+  let prompt .= "\n-->"
+  let prompt .= "\n\n# Conversation Summary"
+  let prompt .= "\n\n## Key Topics Discussed"
+  let prompt .= "\n[Bullet points of main topics and decisions made]"
+  let prompt .= "\n\n## Important Information to Remember"
+  let prompt .= "\n[Critical details, decisions, or context that should be retained]"
+  let prompt .= "\n\n## User Preferences"
+  let prompt .= "\n[Any preferences inferred from the conversation, such as:]"
+  let prompt .= "\n- Coding style preferences"
+  let prompt .= "\n- Tool or technology preferences"
+  let prompt .= "\n- Communication preferences"
+  let prompt .= "\n- Project-specific conventions"
+  let prompt .= "\n\n## Action Items"
+  let prompt .= "\n[Any pending tasks or future work mentioned]"
+  let prompt .= "\n\nSave this summary to .vim-chatgpt/summary.md (with the metadata header included)."
+  let prompt .= "\n\nImportant: Use create_file tool with overwrite=true to save to .vim-chatgpt/summary.md. INCLUDE THE METADATA COMMENT AT THE TOP."
+
+  " Use session mode 0 for one-time response, disable plan approval and suppress display
+  let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+  let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+  let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+  let g:chat_gpt_session_mode = 0
+  let g:chat_gpt_require_plan_approval = 0
+  let g:chat_gpt_suppress_display = 1
+
+  echo "Generating conversation summary... (this will analyze conversation history)"
+  call ChatGPT(prompt)
+
+  " Restore settings
+  let g:chat_gpt_session_mode = save_session_mode
+  let g:chat_gpt_require_plan_approval = save_plan_approval
+  let g:chat_gpt_suppress_display = save_suppress_display
+
+  echo "\nConversation summary generated at .vim-chatgpt/summary.md"
+  echo "You can edit this file to add or modify preferences."
 endfunction
 
 " Menu for ChatGPT
@@ -1711,6 +1925,7 @@ endfor
 
 command! GenerateCommit call GenerateCommitMessage()
 command! GptGenerateContext call GenerateProjectContext()
+command! GptGenerateSummary call GenerateConversationSummary()
 
 function! SetPersona(persona)
     let personas = keys(g:gpt_personas)
@@ -1725,3 +1940,7 @@ endfunction
 
 
 command! -nargs=1 GptBe call SetPersona(<q-args>)
+
+" Call the check functions during plugin initialization (after all variables and functions are defined)
+call s:check_and_generate_context()
+call s:check_and_update_summary()

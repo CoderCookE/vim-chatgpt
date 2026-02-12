@@ -158,22 +158,31 @@ let g:chat_gpt_enable_tools=1
  - **g:split_ratio**: Split window size ratio. If set to 4, the window will be 1/4 of the screen. Default: 3
  - **g:chat_gpt_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
  - **g:chat_gpt_require_plan_approval**: Require user approval before executing tool-based plans. When enabled, the AI will present a plan first, wait for approval, then execute tools in batches of 3 iterations with review points. Default: 1 (enabled).
+ - **g:chat_gpt_summary_compaction_size**: Trigger summary regeneration after this many bytes of new conversation since last summary. Default: 51200 (50KB). This implements automatic conversation compaction.
+ - **g:chat_gpt_recent_history_size**: Keep this many bytes of recent conversation uncompressed. Older content gets compressed into summary. Default: 20480 (20KB). Controls the sliding window size.
 
 ## AI Tools & Function Calling
 
 The plugin includes a powerful tools framework that allows AI agents to interact with your codebase. When enabled, the AI can autonomously use tools to search files, read code, and find information to better answer your questions.
 
-### Planning Workflow
+### Adaptive Planning Workflow
 
-When `g:chat_gpt_require_plan_approval` is enabled (default), the AI follows a structured planning workflow:
+When `g:chat_gpt_require_plan_approval` is enabled (default), the AI follows an **adaptive planning workflow** that adjusts based on results:
 
-1. **Plan Creation**: The AI analyzes your request and creates a step-by-step plan listing which tools it will use
-2. **User Approval**: You review the plan and approve or cancel execution
-3. **Batch Execution**: Tools are executed in batches of 3 iterations
-4. **Review Points**: After each batch of 3 iterations, you can review progress and choose to continue or stop
-5. **Completion**: The AI presents final results after all approved iterations
+1. **Initial Plan Creation**: The AI analyzes your request and creates a step-by-step plan
+2. **User Approval**: You review and approve the initial plan
+3. **Execution & Reflection**: The AI executes tools one step at a time, evaluating results
+4. **Adaptive Revision**: If results are unexpected or require a different approach:
+   - AI presents a **REVISED PLAN** explaining what changed and why
+   - You approve or reject the revision
+   - Execution continues with the new plan
+5. **Natural Completion**: The AI decides when the task is complete and summarizes results
 
-This workflow gives you control over what the AI does to your codebase and allows you to stop execution at any point.
+**Key Benefits:**
+- **Adaptive**: Plans can change based on what the AI discovers
+- **Transparent**: You see and approve any plan changes
+- **Efficient**: No artificial batch limits - AI works until done
+- **Flexible**: Handles unexpected situations (missing files, different structure, etc.)
 
 **Disable plan approval** (tools execute immediately without confirmation):
 ```vim
@@ -266,14 +275,14 @@ The AI might:
 2. Use `edit_file_lines` to efficiently replace the specific line range
 3. Confirm the changes without reading the entire file into memory
 
-**Planning Workflow Example:**
+**Adaptive Planning Example:**
 ```vim
 :Ask "Refactor the authentication module to use JWT tokens"
 ```
 
-With `g:chat_gpt_require_plan_approval` enabled, the workflow looks like:
+With `g:chat_gpt_require_plan_approval` enabled, the workflow adapts to discoveries:
 
-1. **AI presents plan:**
+1. **AI presents initial plan:**
    ```
    I'll refactor the authentication to use JWT tokens:
    1. find_file_in_project to locate auth files
@@ -281,34 +290,42 @@ With `g:chat_gpt_require_plan_approval` enabled, the workflow looks like:
    3. create_file to add JWT utility functions
    4. edit_file to update login/logout functions
    5. edit_file to update middleware
-
    ============================================================
-   PLAN FOR APPROVAL:
-   ============================================================
-   I'll refactor the authentication to use JWT tokens:
-   1. find_file_in_project to locate auth files
-   2. read_file to understand current implementation
-   3. create_file to add JWT utility functions
-   4. edit_file to update login/logout functions
-   5. edit_file to update middleware
+   INITIAL PLAN FOR APPROVAL:
    ============================================================
    ```
 
 2. **You approve:** `Approve plan? [y]es to proceed, [n]o to cancel: y`
 
-3. **AI executes (iterations 1-3):**
-   - Finds and reads auth files
-   - Creates JWT utility file
+3. **AI executes and discovers something unexpected:**
+   - Finds auth files in unexpected location
+   - Reads current implementation
+   - Discovers auth is split across multiple modules
 
-4. **Review point:** `[Completed 3 tool iterations. Continue?] [y]es to continue, [n]o to stop: y`
+4. **AI presents revised plan:**
+   ```
+   === REVISED PLAN ===
 
-5. **AI continues (iterations 4-6):**
-   - Updates login function
-   - Updates logout function
+   I discovered the auth system is split across 3 modules:
+   - auth/session.py (session management)
+   - auth/tokens.py (already has basic token support!)
+   - middleware/auth.py (request validation)
 
-6. **Review point:** `[Completed 6 tool iterations. Continue?] [y]es to continue, [n]o to stop: y`
+   Revised approach:
+   1. Extend existing auth/tokens.py with JWT functions
+   2. Update session.py to use JWT instead of sessions
+   3. Update middleware to validate JWT tokens
 
-7. **AI completes final steps**
+   ============================================================
+   REVISED PLAN FOR APPROVAL:
+   ============================================================
+   ```
+
+5. **You approve revision:** `Approve revised plan? [y]es to proceed, [n]o to cancel: y`
+
+6. **AI continues with adapted approach** until complete
+
+7. **AI summarizes:** "Successfully refactored auth to use JWT tokens. Modified 3 files..."
 
 ### Supported Providers
 
@@ -384,6 +401,112 @@ rm .vim-chatgpt/history.txt
 let g:chat_gpt_session_mode = 0
 ```
 
+## Conversation Summary & Preferences
+
+The plugin uses a **conversation compaction strategy** to maintain context while keeping token usage bounded. As conversations grow, older messages are compressed into a summary, while recent messages remain fully accessible.
+
+### How Compaction Works
+
+**The Strategy:**
+1. **System Message = Context + Summary + Recent History**
+   - Project context (always loaded)
+   - Conversation summary (compressed older conversation)
+   - Last ~20KB of recent uncompressed conversation
+
+2. **Automatic Compaction:**
+   - When conversation grows by 50KB (configurable), the summary is regenerated
+   - Content from the last cutoff point to current position (minus recent window) gets compressed into the summary
+   - A cutoff marker is stored in the summary metadata
+   - Only messages after the cutoff are loaded as full history
+
+3. **Result:**
+   - Bounded token usage (summary + recent history is fixed size)
+   - Full context preserved (older parts compressed in summary)
+   - Automatic sliding window as conversations grow
+
+### Manual Summary Generation
+
+While summaries are generated automatically through compaction, you can manually trigger an update:
+
+```vim
+:GptGenerateSummary
+```
+
+The AI will:
+1. Read the conversation history from `.vim-chatgpt/history.txt`
+2. Compress content from last cutoff to current position (minus recent window)
+3. Identify key topics, decisions, and user preferences
+4. Merge with existing summary if present
+5. Update `.vim-chatgpt/summary.md` with new cutoff metadata
+
+### Summary File Format
+
+The summary file (`.vim-chatgpt/summary.md`) contains:
+
+**Metadata Header:**
+```markdown
+<!-- SUMMARY_METADATA
+cutoff_byte: 51200
+last_updated: 2024-01-15
+-->
+```
+
+**Summary Content:**
+- **Key Topics Discussed**: Main subjects and decisions made
+- **Important Information to Remember**: Critical details and context
+- **User Preferences**: Inferred preferences such as:
+  - Coding style preferences (e.g., "prefers functional programming")
+  - Tool or technology preferences (e.g., "uses TypeScript over JavaScript")
+  - Communication preferences (e.g., "prefers concise explanations")
+  - Project-specific conventions
+- **Action Items**: Pending tasks or future work
+
+The `cutoff_byte` metadata tracks which portion of history has been compressed, enabling the sliding window strategy.
+
+### Configuration
+
+**Configure compaction behavior:**
+```vim
+" Trigger summary update after this many bytes of new conversation
+let g:chat_gpt_summary_compaction_size = 51200  " Default: 50KB
+
+" Keep this much recent history uncompressed
+let g:chat_gpt_recent_history_size = 20480  " Default: 20KB
+```
+
+### How It Works
+
+**Automatic Compaction:**
+1. New conversation gets written to `.vim-chatgpt/history.txt`
+2. When new content since last summary exceeds `g:chat_gpt_summary_compaction_size`:
+   - AI reads existing summary + new content to compact
+   - Generates updated summary including key topics, decisions, and preferences
+   - Stores cutoff position in summary metadata
+3. On next conversation:
+   - Summary loaded into system message (compressed older content)
+   - Only recent history after cutoff loaded as full messages
+   - Token usage stays bounded
+
+**Manual Updates:**
+- Run `:GptGenerateSummary` anytime to manually trigger compaction
+- Edit `.vim-chatgpt/summary.md` to manually adjust preferences
+- The summary is automatically loaded into every conversation's system message
+
+### Benefits
+
+- **Bounded Token Usage**: Summary + recent history keeps context size predictable
+- **Full Context Preserved**: Older conversations compressed, not lost
+- **Remembers Preferences**: AI learns and retains your coding style, tool preferences, and communication style
+- **Automatic Maintenance**: Compaction happens automatically as conversations grow
+- **Long-Running Conversations**: Have extended discussions without hitting token limits
+
+**Example:**
+As you work on a project over days/weeks:
+1. Day 1: Discuss architecture, make decisions (saved in history)
+2. Day 3: History grows, gets compacted into summary
+3. Day 7: AI still remembers Day 1 decisions (from summary) + recent conversation (full history)
+4. Your preferences (e.g., "prefers TypeScript", "uses Jest") persist across all sessions
+
 ## Project Context
 
 The plugin can maintain project context to make the AI smarter about your specific codebase. This context is automatically loaded into every conversation.
@@ -451,6 +574,38 @@ When you start any AI conversation:
 3. The AI has this context for every request in that project
 
 This means when you ask "What is this project?", the AI already knows!
+
+## .vim-chatgpt Directory Structure
+
+All plugin files are stored in the `.vim-chatgpt/` directory in your project root:
+
+```
+.vim-chatgpt/
+├── context.md     # Project context (auto-generated or manual)
+├── summary.md     # Conversation summary & user preferences
+└── history.txt    # Full conversation history
+```
+
+**Files are automatically loaded:**
+- `context.md` - Loaded into every conversation's system message
+- `summary.md` - Loaded into every conversation's system message
+- `history.txt` - Loaded for conversation continuity (respects token limits)
+
+**Manual management:**
+```bash
+# View files
+ls .vim-chatgpt/
+
+# Edit context or summary
+vi .vim-chatgpt/context.md
+vi .vim-chatgpt/summary.md
+
+# Clear history
+rm .vim-chatgpt/history.txt
+
+# Start fresh (removes all plugin data)
+rm -rf .vim-chatgpt/
+```
 
 ## Customization
 
