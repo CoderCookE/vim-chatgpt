@@ -6,6 +6,19 @@ if !has('python3')
   finish
 endif
 
+" Function to check if context file exists and auto-generate if not
+function! s:check_and_generate_context()
+    let context_file = getcwd() . '/.vim-chatgpt/context.md'
+    if !filereadable(context_file)
+        " Auto-generate context file if it doesn't exist
+        echo "No project context found. Generating automatically..."
+        call GenerateProjectContext()
+    endif
+endfunction
+
+" Call the check function during plugin initialization
+call s:check_and_generate_context()
+
 " Set default values for Vim variables if they don't exist
 if !exists("g:chat_gpt_max_tokens")
   let g:chat_gpt_max_tokens = 2000
