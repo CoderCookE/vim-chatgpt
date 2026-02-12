@@ -1799,6 +1799,8 @@ def chat_gpt(prompt):
         if not suppress_display:
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
+          # Switch back to previous window so user can see and respond to input prompt
+          vim.command("wincmd p")
 
         approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
         approval = vim.eval(f"input('{approval_prompt}')")
