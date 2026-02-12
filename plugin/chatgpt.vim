@@ -1859,7 +1859,9 @@ function! SendHighlightedCodeToChatGPT(ask, context) abort
 
         if current_line_start == line_start && current_line_end == line_end
             execute 'normal! ' . line_start . 'G' . col_start . '|v' . line_end . 'G' . col_end . '|y'
-            let yanked_text = '```' . &syntax . "\n" . @@ . "\n" . '```'
+            let relative_path = expand('%')
+            let file_info = 'File: ' . relative_path . "\n" . 'Lines: ' . line_start . '-' . line_end . "\n\n"
+            let yanked_text = file_info . '```' . &syntax . "\n" . @@ . "\n" . '```'
         else
             let yanked_text = ''
         endif
