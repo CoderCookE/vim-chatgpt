@@ -1803,6 +1803,7 @@ def chat_gpt(prompt):
         # Switch back to previous window so user can see and respond to input prompt
         # This must happen before showing input(), not just when displaying
         vim.command("wincmd p")
+        vim.command("redraw")  # Force screen update before showing input prompt
 
         approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
         approval = vim.eval(f"input('{approval_prompt}')")
