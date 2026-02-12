@@ -35,6 +35,51 @@ if !exists("g:chat_persona")
   let g:chat_persona = 'default'
 endif
 
+" Provider selection (default to openai for backward compatibility)
+if !exists("g:chat_gpt_provider")
+  let g:chat_gpt_provider = 'openai'
+endif
+
+" Anthropic (Claude) configuration
+if !exists("g:anthropic_api_key")
+  let g:anthropic_api_key = ''
+endif
+
+if !exists("g:anthropic_model")
+  let g:anthropic_model = 'claude-sonnet-4-5-20250929'
+endif
+
+" Google (Gemini) configuration
+if !exists("g:google_api_key")
+  let g:google_api_key = ''
+endif
+
+if !exists("g:google_model")
+  let g:google_model = 'gemini-2.0-flash-exp'
+endif
+
+" Ollama configuration
+if !exists("g:ollama_base_url")
+  let g:ollama_base_url = 'http://localhost:11434'
+endif
+
+if !exists("g:ollama_model")
+  let g:ollama_model = 'llama3.2'
+endif
+
+" OpenRouter configuration
+if !exists("g:openrouter_api_key")
+  let g:openrouter_api_key = ''
+endif
+
+if !exists("g:openrouter_model")
+  let g:openrouter_model = 'anthropic/claude-3.5-sonnet'
+endif
+
+if !exists("g:openrouter_base_url")
+  let g:openrouter_base_url = 'https://openrouter.ai/api/v1'
+endif
+
 let code_wrapper_snippet = "Given the following code snippet: "
 let g:prompt_templates = {
 \ 'ask': '',
@@ -122,10 +167,12 @@ import sys
 import vim
 import os
 
+import json
+
 try:
-    from openai import AzureOpenAI, OpenAI
+    import requests
 except ImportError:
-    print("Error: openai module not found. Please install with Pip and ensure equality of the versions given by :!python3 -V, and :python3 import sys; print(sys.version)")
+    print("Error: requests module not found. Please install with: pip install requests")
     raise
 
 def safe_vim_eval(expression):
@@ -134,29 +181,451 @@ def safe_vim_eval(expression):
     except vim.error:
         return None
 
-def create_client():
-    api_type = safe_vim_eval('g:api_type')
-    api_key = os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key')
-    openai_base_url = os.getenv('OPENAI_PROXY') or os.getenv('OPENAI_API_BASE') or safe_vim_eval('g:openai_base_url')
+# Provider abstraction layer for multi-provider support
+class BaseProvider:
+    """Base interface for all LLM providers"""
 
-    if api_type == 'azure':
-        azure_endpoint = safe_vim_eval('g:azure_endpoint')
-        azure_api_version = safe_vim_eval('g:azure_api_version')
-        azure_deployment = safe_vim_eval('g:azure_deployment')
-        assert azure_endpoint and azure_api_version and azure_deployment, "azure_endpoint, azure_api_version and azure_deployment not set property, please check your settings in `vimrc` or `enviroment`."
-        assert api_key, "api_key not set, please configure your `openai_api_key` in your `vimrc` or `enviroment`"
-        client = AzureOpenAI(
-            azure_endpoint=azure_endpoint,
-            azure_deployment=azure_deployment,
-            api_key=api_key,
-            api_version=azure_api_version,
+    def __init__(self, config):
+        self.config = config
+        self.validate_config()
+
+    def validate_config(self):
+        """Validate required configuration"""
+        raise NotImplementedError("Subclasses must implement validate_config()")
+
+    def get_model(self):
+        """Get the model name from config"""
+        raise NotImplementedError("Subclasses must implement get_model()")
+
+    def create_messages(self, system_message, history, user_message):
+        """Format messages for provider's API"""
+        raise NotImplementedError("Subclasses must implement create_messages()")
+
+    def stream_chat(self, messages, model, temperature, max_tokens):
+        """
+        Stream chat completion chunks
+        Yields: (content_delta, finish_reason)
+        """
+        raise NotImplementedError("Subclasses must implement stream_chat()")
+
+
+class OpenAIProvider(BaseProvider):
+    """OpenAI and Azure OpenAI provider using HTTP requests"""
+
+    def validate_config(self):
+        """Validate OpenAI configuration"""
+        if not self.config.get('api_key'):
+            raise ValueError("OpenAI API key required. Set OPENAI_API_KEY or g:openai_api_key")
+
+        # Validate Azure-specific config if using Azure
+        if self.config.get('api_type') == 'azure':
+            if not self.config.get('azure_endpoint'):
+                raise ValueError("Azure endpoint required. Set g:azure_endpoint")
+            if not self.config.get('azure_deployment'):
+                raise ValueError("Azure deployment required. Set g:azure_deployment")
+            if not self.config.get('azure_api_version'):
+                raise ValueError("Azure API version required. Set g:azure_api_version")
+
+    def get_model(self):
+        """Get the model name from config"""
+        return self.config.get('model', 'gpt-4o')
+
+    def create_messages(self, system_message, history, user_message):
+        """Create messages in OpenAI format"""
+        messages = [{"role": "system", "content": system_message}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_message})
+        return messages
+
+    def stream_chat(self, messages, model, temperature, max_tokens):
+        """Stream chat completion from OpenAI via HTTP"""
+        # Determine if using Azure or standard OpenAI
+        api_type = self.config.get('api_type')
+
+        if api_type == 'azure':
+            # Azure OpenAI endpoint format
+            azure_endpoint = self.config['azure_endpoint'].rstrip('/')
+            azure_deployment = self.config['azure_deployment']
+            azure_api_version = self.config['azure_api_version']
+            url = f"{azure_endpoint}/openai/deployments/{azure_deployment}/chat/completions?api-version={azure_api_version}"
+
+            headers = {
+                'api-key': self.config['api_key'],
+                'Content-Type': 'application/json'
+            }
+        else:
+            # Standard OpenAI endpoint
+            base_url = self.config.get('base_url') or 'https://api.openai.com/v1'
+            base_url = base_url.rstrip('/')
+            url = f"{base_url}/chat/completions"
+
+            headers = {
+                'Authorization': f'Bearer {self.config["api_key"]}',
+                'Content-Type': 'application/json'
+            }
+
+        # Build payload
+        payload = {
+            'model': model,
+            'messages': messages,
+            'stream': True
+        }
+
+        # Handle different model parameter requirements
+        if model.startswith('gpt-'):
+            payload['temperature'] = temperature
+            payload['max_tokens'] = max_tokens
+        else:
+            # O-series models use different parameters
+            payload['max_completion_tokens'] = max_tokens
+
+        response = requests.post(url, headers=headers, json=payload, stream=True)
+
+        # Parse Server-Sent Events stream
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            line = line.decode('utf-8')
+            if not line.startswith('data: '):
+                continue
+
+            data = line[6:]  # Remove 'data: ' prefix
+            if data == '[DONE]':
+                break
+
+            try:
+                chunk = json.loads(data)
+                if 'choices' in chunk and chunk['choices']:
+                    choice = chunk['choices'][0]
+                    content = choice.get('delta', {}).get('content', '')
+                    finish_reason = choice.get('finish_reason', '')
+
+                    if content:
+                        yield (content, '')
+                    if finish_reason:
+                        yield ('', finish_reason)
+            except json.JSONDecodeError:
+                continue
+
+
+class AnthropicProvider(BaseProvider):
+    """Anthropic Claude provider using HTTP requests"""
+
+    def validate_config(self):
+        """Validate Anthropic configuration"""
+        if not self.config.get('api_key'):
+            raise ValueError("Anthropic API key required. Set ANTHROPIC_API_KEY or g:anthropic_api_key")
+
+    def get_model(self):
+        """Get the model name from config"""
+        return self.config.get('model', 'claude-sonnet-4-5-20250929')
+
+    def create_messages(self, system_message, history, user_message):
+        """Create messages in Anthropic format"""
+        # Anthropic separates system message from messages array
+        messages = []
+        for msg in history:
+            if msg.get('role') != 'system':
+                messages.append(msg)
+        messages.append({"role": "user", "content": user_message})
+
+        return {
+            'system': system_message,
+            'messages': messages
+        }
+
+    def stream_chat(self, messages, model, temperature, max_tokens):
+        """Stream chat completion from Anthropic"""
+        headers = {
+            'x-api-key': self.config['api_key'],
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        }
+
+        payload = {
+            'model': model,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+            'system': messages['system'],
+            'messages': messages['messages'],
+            'stream': True
+        }
+
+        response = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers=headers,
+            json=payload,
+            stream=True
         )
-    else:
-        client = OpenAI(
-            base_url=openai_base_url,
-            api_key=api_key,
-        )
-    return client
+
+        # Parse Server-Sent Events stream
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            line = line.decode('utf-8')
+            if not line.startswith('data: '):
+                continue
+
+            data = line[6:]  # Remove 'data: ' prefix
+            if data == '[DONE]':
+                break
+
+            try:
+                chunk = json.loads(data)
+                if chunk.get('type') == 'content_block_delta':
+                    content = chunk.get('delta', {}).get('text', '')
+                    if content:
+                        yield (content, '')
+                elif chunk.get('type') == 'message_delta':
+                    finish_reason = chunk.get('delta', {}).get('stop_reason', '')
+                    if finish_reason:
+                        yield ('', 'stop')
+            except json.JSONDecodeError:
+                continue
+
+
+class GoogleProvider(BaseProvider):
+    """Google Gemini provider using HTTP requests"""
+
+    def validate_config(self):
+        """Validate Google configuration"""
+        if not self.config.get('api_key'):
+            raise ValueError("Google API key required. Set GOOGLE_API_KEY or g:google_api_key")
+
+    def get_model(self):
+        """Get the model name from config"""
+        return self.config.get('model', 'gemini-2.0-flash-exp')
+
+    def create_messages(self, system_message, history, user_message):
+        """Create messages in Gemini format"""
+        # Gemini uses 'model' instead of 'assistant' for AI responses
+        contents = []
+        for msg in history:
+            if msg.get('role') == 'user':
+                contents.append({
+                    'role': 'user',
+                    'parts': [{'text': msg['content']}]
+                })
+            elif msg.get('role') == 'assistant':
+                contents.append({
+                    'role': 'model',
+                    'parts': [{'text': msg['content']}]
+                })
+
+        contents.append({
+            'role': 'user',
+            'parts': [{'text': user_message}]
+        })
+
+        return {
+            'system_instruction': {'parts': [{'text': system_message}]},
+            'contents': contents
+        }
+
+    def stream_chat(self, messages, model, temperature, max_tokens):
+        """Stream chat completion from Google Gemini"""
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?key={self.config['api_key']}"
+
+        payload = {
+            'systemInstruction': messages['system_instruction'],
+            'contents': messages['contents'],
+            'generationConfig': {
+                'temperature': temperature,
+                'maxOutputTokens': max_tokens
+            }
+        }
+
+        response = requests.post(url, json=payload, stream=True)
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            try:
+                chunk = json.loads(line)
+                if 'candidates' in chunk and chunk['candidates']:
+                    candidate = chunk['candidates'][0]
+                    if 'content' in candidate and 'parts' in candidate['content']:
+                        for part in candidate['content']['parts']:
+                            text = part.get('text', '')
+                            if text:
+                                yield (text, '')
+                    finish_reason = candidate.get('finishReason', '')
+                    if finish_reason and finish_reason != 'STOP':
+                        yield ('', finish_reason)
+                    elif finish_reason == 'STOP':
+                        yield ('', 'stop')
+            except json.JSONDecodeError:
+                continue
+
+
+class OllamaProvider(BaseProvider):
+    """Ollama local provider using HTTP requests"""
+
+    def validate_config(self):
+        """Validate Ollama configuration"""
+        if not self.config.get('base_url'):
+            self.config['base_url'] = 'http://localhost:11434'
+
+    def get_model(self):
+        """Get the model name from config"""
+        return self.config.get('model', 'llama3.2')
+
+    def create_messages(self, system_message, history, user_message):
+        """Create messages in Ollama format (OpenAI-compatible)"""
+        messages = [{"role": "system", "content": system_message}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_message})
+        return messages
+
+    def stream_chat(self, messages, model, temperature, max_tokens):
+        """Stream chat completion from Ollama"""
+        url = f"{self.config['base_url']}/api/chat"
+
+        payload = {
+            'model': model,
+            'messages': messages,
+            'stream': True,
+            'options': {
+                'temperature': temperature,
+                'num_predict': max_tokens
+            }
+        }
+
+        response = requests.post(url, json=payload, stream=True)
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            try:
+                chunk = json.loads(line)
+                content = chunk.get('message', {}).get('content', '')
+                done = chunk.get('done', False)
+
+                if content:
+                    yield (content, '')
+                if done:
+                    yield ('', 'stop')
+            except json.JSONDecodeError:
+                continue
+
+
+class OpenRouterProvider(BaseProvider):
+    """OpenRouter provider using OpenAI-compatible HTTP API"""
+
+    def validate_config(self):
+        """Validate OpenRouter configuration"""
+        if not self.config.get('api_key'):
+            raise ValueError("OpenRouter API key required. Set OPENROUTER_API_KEY or g:openrouter_api_key")
+        if not self.config.get('base_url'):
+            self.config['base_url'] = 'https://openrouter.ai/api/v1'
+
+    def get_model(self):
+        """Get the model name from config"""
+        return self.config.get('model', 'anthropic/claude-3.5-sonnet')
+
+    def create_messages(self, system_message, history, user_message):
+        """Create messages in OpenAI format (OpenRouter compatible)"""
+        messages = [{"role": "system", "content": system_message}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_message})
+        return messages
+
+    def stream_chat(self, messages, model, temperature, max_tokens):
+        """Stream chat completion from OpenRouter"""
+        url = f"{self.config['base_url']}/chat/completions"
+
+        headers = {
+            'Authorization': f'Bearer {self.config["api_key"]}',
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://github.com/CoderCookE/vim-chatgpt',
+        }
+
+        payload = {
+            'model': model,
+            'messages': messages,
+            'temperature': temperature,
+            'max_tokens': max_tokens,
+            'stream': True
+        }
+
+        response = requests.post(url, headers=headers, json=payload, stream=True)
+
+        # Parse Server-Sent Events stream (OpenAI-compatible)
+        for line in response.iter_lines():
+            if not line:
+                continue
+
+            line = line.decode('utf-8')
+            if not line.startswith('data: '):
+                continue
+
+            data = line[6:]  # Remove 'data: ' prefix
+            if data == '[DONE]':
+                break
+
+            try:
+                chunk = json.loads(data)
+                if 'choices' in chunk and chunk['choices']:
+                    choice = chunk['choices'][0]
+                    content = choice.get('delta', {}).get('content', '')
+                    finish_reason = choice.get('finish_reason', '')
+
+                    if content:
+                        yield (content, '')
+                    if finish_reason:
+                        yield ('', finish_reason)
+            except json.JSONDecodeError:
+                continue
+
+
+def create_provider(provider_name):
+    """Factory function to create the appropriate provider"""
+
+    if provider_name == 'anthropic':
+        config = {
+            'api_key': os.getenv('ANTHROPIC_API_KEY') or safe_vim_eval('g:anthropic_api_key'),
+            'model': safe_vim_eval('g:anthropic_model')
+        }
+        return AnthropicProvider(config)
+
+    elif provider_name == 'google':
+        config = {
+            'api_key': os.getenv('GOOGLE_API_KEY') or safe_vim_eval('g:google_api_key'),
+            'model': safe_vim_eval('g:google_model')
+        }
+        return GoogleProvider(config)
+
+    elif provider_name == 'ollama':
+        config = {
+            'base_url': os.getenv('OLLAMA_HOST') or safe_vim_eval('g:ollama_base_url'),
+            'model': safe_vim_eval('g:ollama_model')
+        }
+        return OllamaProvider(config)
+
+    elif provider_name == 'openrouter':
+        config = {
+            'api_key': os.getenv('OPENROUTER_API_KEY') or safe_vim_eval('g:openrouter_api_key'),
+            'base_url': safe_vim_eval('g:openrouter_base_url'),
+            'model': safe_vim_eval('g:openrouter_model')
+        }
+        return OpenRouterProvider(config)
+
+    else:  # Default to openai
+        config = {
+            'api_type': safe_vim_eval('g:api_type'),
+            'api_key': os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key'),
+            'base_url': os.getenv('OPENAI_PROXY') or os.getenv('OPENAI_API_BASE') or safe_vim_eval('g:openai_base_url'),
+            'model': safe_vim_eval('g:chat_gpt_model'),
+            # Azure-specific config
+            'azure_endpoint': safe_vim_eval('g:azure_endpoint'),
+            'azure_deployment': safe_vim_eval('g:azure_deployment'),
+            'azure_api_version': safe_vim_eval('g:azure_api_version')
+        }
+        return OpenAIProvider(config)
 
 
 def chat_gpt(prompt):
@@ -176,17 +645,31 @@ def chat_gpt(prompt):
     "o4-mini": 200000,
   }
 
+  # Get provider
+  provider_name = safe_vim_eval('g:chat_gpt_provider') or 'openai'
+
+  try:
+    provider = create_provider(provider_name)
+  except Exception as e:
+    print(f"Error creating provider '{provider_name}': {str(e)}")
+    return
+
+  # Get parameters
   max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
-  model = str(vim.eval('g:chat_gpt_model'))
   temperature = float(vim.eval('g:chat_gpt_temperature'))
   lang = str(vim.eval('g:chat_gpt_lang'))
   resp = f" And respond in {lang}." if lang != 'None' else ""
 
-  personas = dict(vim.eval('g:gpt_personas'))
-  persona  = str(vim.eval('g:chat_persona'))
+  # Get model from provider
+  model = provider.get_model()
 
-  systemCtx = {"role": "system", "content": f"{personas[persona]} {resp}"}
-  messages = []
+  # Build system message
+  personas = dict(vim.eval('g:gpt_personas'))
+  persona = str(vim.eval('g:chat_persona'))
+  system_message = f"{personas[persona]} {resp}"
+
+  # Session history management
+  history = []
   session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1 else None
 
   # If session id exists and is in vim buffers
@@ -200,72 +683,52 @@ def chat_gpt(prompt):
         break
 
     # Read the lines from the buffer
-    history = "\n".join(buffer).split('\n\n>>>')
-    history.reverse()
+    history_text = "\n".join(buffer).split('\n\n>>>')
+    history_text.reverse()
 
     # Adding messages to history until token limit is reached
-    token_count = token_limits.get(model, 4097) - max_tokens - len(prompt) - len(str(systemCtx))
+    token_count = token_limits.get(model, 100000) - max_tokens - len(prompt) - len(system_message)
 
-    for line in history:
+    for line in history_text:
       if ':\n' in line:
-        role, message = line.split(":\n")
+        role, message = line.split(":\n", 1)
 
         token_count -= len(message)
 
         if token_count > 0:
-            messages.insert(0, {
-                "role": role.lower(),
-                "content": message
-            })
+          history.insert(0, {
+              "role": role.lower(),
+              "content": message
+          })
 
+  # Display initial prompt in session
   if session_id:
-    content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'.replace("'", "''")
+    content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'
 
     vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), session_id))
     vim.command("redraw")
 
-  messages.append({"role": "user", "content": prompt})
-  messages.insert(0, systemCtx)
-
+  # Create messages using provider
   try:
-    client = create_client()
-    chat_parameters = {
-          'model':model,
-          'messages':messages,
-          'stream':True
-    }
-    if model.startswith('gpt-'):
-      chat_parameters.update(
-        temperature=temperature,
-        max_tokens=max_tokens
-      )
-    else:
-      chat_parameters.update(
-        max_completion_tokens=max_tokens
-      )
-    response = client.chat.completions.create(**chat_parameters)
+    messages = provider.create_messages(system_message, history, prompt)
+  except Exception as e:
+    print(f"Error creating messages: {str(e)}")
+    return
 
-    # Iterate through the response chunks
-    for chunk in response:
-      # newer Azure API responses contain empty chunks in the first streamed
-      # response
-      if not chunk.choices:
-          continue
+  # Stream response using provider
+  try:
+    chunk_session_id = session_id if session_id else 'gpt-response'
 
-      chunk_session_id = session_id if session_id else chunk.id
-      choice = chunk.choices[0]
-      finish_reason = choice.finish_reason
-
+    for content, finish_reason in provider.stream_chat(messages, model, temperature, max_tokens):
       # Call DisplayChatGPTResponse with the finish_reason or content
       if finish_reason:
         vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
-      elif choice.delta:
-        content = choice.delta.content
+      elif content:
         vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
 
       vim.command("redraw")
   except Exception as e:
-    print("Error:", str(e))
+    print(f"Error streaming from {provider_name}: {str(e)}")
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
