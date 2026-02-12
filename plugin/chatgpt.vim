@@ -1899,6 +1899,9 @@ def chat_gpt(prompt):
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
+
+  " Check if summary needs updating after AI response completes
+  call s:check_and_update_summary()
 endfunction
 
 " Function to send highlighted code to ChatGPT
@@ -2181,4 +2184,4 @@ command! -nargs=1 GptBe call SetPersona(<q-args>)
 
 " Call the check functions during plugin initialization (after all variables and functions are defined)
 call s:check_and_generate_context()
-call s:check_and_update_summary()
+" Note: Summary compaction check is called after AI responses complete (see ChatGPT function)
