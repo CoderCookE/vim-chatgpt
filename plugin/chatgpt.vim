@@ -316,6 +316,32 @@ def get_tool_definitions():
                 },
                 "required": ["file_path", "old_content", "new_content"]
             }
+        },
+        {
+            "name": "edit_file_lines",
+            "description": "Edit specific lines in a file by line number. More efficient for large files. Line numbers are 1-indexed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to edit (absolute or relative to current directory)"
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Starting line number (1-indexed, inclusive)"
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Ending line number (1-indexed, inclusive). Use same as start_line to replace a single line."
+                    },
+                    "new_content": {
+                        "type": "string",
+                        "description": "The new content to replace the specified line range. Can be multiple lines separated by newlines."
+                    }
+                },
+                "required": ["file_path", "start_line", "end_line", "new_content"]
+            }
         }
     ]
 
@@ -470,6 +496,63 @@ def execute_tool(tool_name, arguments):
                 return f"Permission denied editing file: {file_path}"
             except Exception as e:
                 return f"Error editing file: {str(e)}"
+
+        elif tool_name == "edit_file_lines":
+            file_path = arguments.get("file_path")
+            start_line = arguments.get("start_line")
+            end_line = arguments.get("end_line")
+            new_content = arguments.get("new_content")
+
+            try:
+                # Validate line numbers
+                if start_line < 1:
+                    return f"Invalid start_line: {start_line}. Line numbers must be >= 1."
+                if end_line < start_line:
+                    return f"Invalid line range: end_line ({end_line}) must be >= start_line ({start_line})."
+
+                # Read all lines from the file
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                total_lines = len(lines)
+
+                # Check if line numbers are within bounds
+                if start_line > total_lines:
+                    return f"start_line ({start_line}) exceeds file length ({total_lines} lines)."
+                if end_line > total_lines:
+                    return f"end_line ({end_line}) exceeds file length ({total_lines} lines)."
+
+                # Convert to 0-indexed
+                start_idx = start_line - 1
+                end_idx = end_line - 1
+
+                # Prepare new content lines
+                new_lines = new_content.split('\n') if new_content else []
+                # Ensure each line has a newline except possibly the last
+                new_lines_formatted = [line + '\n' if not line.endswith('\n') else line for line in new_lines[:-1]]
+                if new_lines:
+                    # For the last line, add newline only if original last line had one
+                    if end_idx < total_lines - 1 or (end_idx == total_lines - 1 and lines[end_idx].endswith('\n')):
+                        new_lines_formatted.append(new_lines[-1] + '\n' if not new_lines[-1].endswith('\n') else new_lines[-1])
+                    else:
+                        new_lines_formatted.append(new_lines[-1])
+
+                # Build the new file content
+                new_file_lines = lines[:start_idx] + new_lines_formatted + lines[end_idx + 1:]
+
+                # Write back to the file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.writelines(new_file_lines)
+
+                lines_replaced = end_idx - start_idx + 1
+                lines_added = len(new_lines_formatted)
+                return f"Successfully edited {file_path}: replaced lines {start_line}-{end_line} ({lines_replaced} lines) with {lines_added} lines"
+            except FileNotFoundError:
+                return f"File not found: {file_path}"
+            except PermissionError:
+                return f"Permission denied editing file: {file_path}"
+            except Exception as e:
+                return f"Error editing file by lines: {str(e)}"
 
         else:
             return f"Unknown tool: {tool_name}"

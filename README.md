@@ -173,6 +173,7 @@ The plugin includes a powerful tools framework that allows AI agents to interact
 - **create_file**: Create a new file with specified content
 - **open_file**: Open a file in the current Vim buffer (supports splits)
 - **edit_file**: Edit an existing file by replacing specific content
+- **edit_file_lines**: Edit specific line ranges in a file (efficient for large files)
 
 ### How It Works
 
@@ -182,7 +183,7 @@ When you ask the AI a question or give it a task, it can automatically:
 3. **Find specific patterns** in code using `find_in_file`
 4. **Create new files** using `create_file`
 5. **Open files in Vim** using `open_file`
-6. **Edit existing files** using `edit_file`
+6. **Edit existing files** using `edit_file` or `edit_file_lines`
 7. Use that information to provide accurate answers or complete tasks
 
 ### Example Usage
@@ -219,6 +220,16 @@ The AI might:
 2. Use `read_file` to read the current implementation
 3. Use `edit_file` to add try/catch blocks and error handling
 4. Confirm the changes were made successfully
+
+**Editing Large Files by Line Number:**
+```vim
+:Ask "Replace lines 45-60 in config.py with updated settings"
+```
+
+The AI might:
+1. Use `read_file` to view the current content and line numbers
+2. Use `edit_file_lines` to efficiently replace the specific line range
+3. Confirm the changes without reading the entire file into memory
 
 ### Supported Providers
 
