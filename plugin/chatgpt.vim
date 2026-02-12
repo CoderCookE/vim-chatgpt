@@ -240,11 +240,11 @@ endif
 
 " Conversation history compaction settings
 if !exists("g:chat_gpt_summary_compaction_size")
-  let g:chat_gpt_summary_compaction_size = 51200  " 50KB - trigger summary update
+  let g:chat_gpt_summary_compaction_size = 102400  " 50KB - trigger summary update
 endif
 
 if !exists("g:chat_gpt_recent_history_size")
-  let g:chat_gpt_recent_history_size = 20480  " 20KB - keep this much recent history uncompressed
+  let g:chat_gpt_recent_history_size = 30480  " 30KB - keep this much recent history uncompressed
 endif
 
 " Provider selection (default to openai for backward compatibility)
@@ -1799,8 +1799,10 @@ def chat_gpt(prompt):
         if not suppress_display:
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
-          # Switch back to previous window so user can see and respond to input prompt
-          vim.command("wincmd p")
+
+        # Switch back to previous window so user can see and respond to input prompt
+        # This must happen before showing input(), not just when displaying
+        vim.command("wincmd p")
 
         approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
         approval = vim.eval(f"input('{approval_prompt}')")
@@ -1970,6 +1972,7 @@ function! SendHighlightedCodeToChatGPT(ask, context) abort
 endfunction
 
 " Function to generate a commit message
+" Function to generate a commit message
 function! GenerateCommitMessage()
   " Save the current position and yank register
   let save_cursor = getcurpos()
@@ -1985,6 +1988,11 @@ function! GenerateCommitMessage()
   let g:chat_gpt_session_mode = 0
 
   call ChatGPT(prompt)
+
+  " Restore the original yank register and cursor position
+  let @@ = save_reg
+  call setreg('@', save_reg, save_regtype)
+  call setpos('.', save_cursor)
 endfunction
 
 " Function to generate project context
