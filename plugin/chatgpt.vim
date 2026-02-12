@@ -2004,12 +2004,21 @@ function! GenerateConversationSummary()
     endif
   endif
 
+  " Generate metadata header
+  let metadata = "<!-- SUMMARY_METADATA\n"
+  let metadata .= "cutoff_byte: " . new_cutoff . "\n"
+  let metadata .= "last_updated: " . strftime("%Y-%m-%d") . "\n"
+  let metadata .= "-->\n\n"
+
   " Create a prompt with the actual content
   let prompt = ""
 
   if old_cutoff > 0 && !empty(old_summary)
+    " Strip old metadata from existing summary
+    let summary_content = substitute(old_summary, '^<!--\_.\{-}-->\n\+', '', '')
+
     let prompt .= "Here is the existing conversation summary:\n\n"
-    let prompt .= "```markdown\n" . old_summary . "\n```\n\n"
+    let prompt .= "```markdown\n" . summary_content . "\n```\n\n"
     let prompt .= "And here is the new conversation to add to the summary:\n\n"
     let prompt .= "```\n" . new_conversation . "\n```\n\n"
     let prompt .= "Please extend the existing summary with insights from the new conversation.\n"
@@ -2021,26 +2030,22 @@ function! GenerateConversationSummary()
     let prompt .= "Please create a comprehensive summary of this conversation."
   endif
 
-  let prompt .= "\n\nUse this exact format for the summary:"
-  let prompt .= "\n\n<!-- SUMMARY_METADATA"
-  let prompt .= "\ncutoff_byte: " . new_cutoff
-  let prompt .= "\nlast_updated: " . strftime("%Y-%m-%d")
-  let prompt .= "\n-->"
+  let prompt .= "\n\nGenerate the summary using this format:"
   let prompt .= "\n\n# Conversation Summary"
   let prompt .= "\n\n## Key Topics Discussed"
   let prompt .= "\n[Bullet points of main topics and decisions made]"
   let prompt .= "\n\n## Important Information to Remember"
   let prompt .= "\n[Critical details, decisions, or context that should be retained]"
   let prompt .= "\n\n## User Preferences"
-  let prompt .= "\n[Any preferences inferred from the conversation, such as:]"
   let prompt .= "\n- Coding style preferences"
   let prompt .= "\n- Tool or technology preferences"
   let prompt .= "\n- Communication preferences"
   let prompt .= "\n- Project-specific conventions"
   let prompt .= "\n\n## Action Items"
   let prompt .= "\n[Any pending tasks or future work mentioned]"
-  let prompt .= "\n\nSave this summary to .vim-chatgpt/summary.md using the create_file tool with overwrite=true."
-  let prompt .= "\nIMPORTANT: Include the metadata header at the top."
+  let prompt .= "\n\nSave the summary to .vim-chatgpt/summary.md using the create_file tool with overwrite=true."
+  let prompt .= "\n\nIMPORTANT: Prepend this exact metadata header to the content:\n\n"
+  let prompt .= metadata
 
   " Use session mode 0 for one-time response, disable plan approval and suppress display
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
