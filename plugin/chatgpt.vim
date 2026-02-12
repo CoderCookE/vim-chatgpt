@@ -192,6 +192,34 @@ def get_tool_definitions():
     """Define available tools for AI agents"""
     return [
         {
+            "name": "get_working_directory",
+            "description": "Get the current working directory path. Use this to understand the project root location.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "list_directory",
+            "description": "List files and directories in a specified path. Use this to explore project structure and find relevant files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the directory to list (absolute or relative to current directory). Use '.' for current directory."
+                    },
+                    "show_hidden": {
+                        "type": "boolean",
+                        "description": "Whether to show hidden files/directories (those starting with '.'). Default: false",
+                        "default": False
+                    }
+                },
+                "required": ["path"]
+            }
+        },
+        {
             "name": "find_in_file",
             "description": "Search for text pattern in a specific file using grep. Returns matching lines with line numbers.",
             "parameters": {
@@ -352,7 +380,69 @@ def execute_tool(tool_name, arguments):
     import glob as glob_module
 
     try:
-        if tool_name == "find_in_file":
+        if tool_name == "get_working_directory":
+            try:
+                cwd = os.getcwd()
+                return f"Current working directory: {cwd}"
+            except Exception as e:
+                return f"Error getting working directory: {str(e)}"
+
+        elif tool_name == "list_directory":
+            path = arguments.get("path", ".")
+            show_hidden = arguments.get("show_hidden", False)
+
+            try:
+                # Resolve path
+                if not os.path.exists(path):
+                    return f"Directory not found: {path}"
+
+                if not os.path.isdir(path):
+                    return f"Not a directory: {path}"
+
+                # List directory contents
+                items = os.listdir(path)
+
+                # Filter hidden files if needed
+                if not show_hidden:
+                    items = [item for item in items if not item.startswith('.')]
+
+                # Sort items: directories first, then files
+                dirs = sorted([item for item in items if os.path.isdir(os.path.join(path, item))])
+                files = sorted([item for item in items if os.path.isfile(os.path.join(path, item))])
+
+                # Format output
+                result_lines = []
+                if dirs:
+                    result_lines.append("Directories:")
+                    for d in dirs:
+                        result_lines.append(f"  {d}/")
+
+                if files:
+                    if dirs:
+                        result_lines.append("")  # Empty line separator
+                    result_lines.append("Files:")
+                    for f in files:
+                        file_path = os.path.join(path, f)
+                        try:
+                            size = os.path.getsize(file_path)
+                            size_str = f"{size:,} bytes" if size < 1024 else f"{size/1024:.1f} KB"
+                            result_lines.append(f"  {f} ({size_str})")
+                        except:
+                            result_lines.append(f"  {f}")
+
+                if not dirs and not files:
+                    return f"Directory is empty: {path}"
+
+                total = len(dirs) + len(files)
+                result_lines.insert(0, f"Listing {path} ({len(dirs)} directories, {len(files)} files):\n")
+
+                return "\n".join(result_lines)
+            except PermissionError:
+                return f"Permission denied accessing directory: {path}"
+            except Exception as e:
+                return f"Error listing directory: {str(e)}"
+
+        elif tool_name == "find_in_file":
             file_path = arguments.get("file_path")
             pattern = arguments.get("pattern")
             case_sensitive = arguments.get("case_sensitive", False)

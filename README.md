@@ -164,6 +164,10 @@ The plugin includes a powerful tools framework that allows AI agents to interact
 
 ### Available Tools
 
+**Project Exploration Tools:**
+- **get_working_directory**: Get the current working directory path
+- **list_directory**: List files and directories in a specified path
+
 **Read-Only Tools:**
 - **find_in_file**: Search for text patterns in a specific file using grep
 - **find_file_in_project**: Find files by name pattern in the current project
@@ -178,15 +182,28 @@ The plugin includes a powerful tools framework that allows AI agents to interact
 ### How It Works
 
 When you ask the AI a question or give it a task, it can automatically:
-1. **Search for relevant files** using `find_file_in_project`
-2. **Read file contents** using `read_file`
-3. **Find specific patterns** in code using `find_in_file`
-4. **Create new files** using `create_file`
-5. **Open files in Vim** using `open_file`
-6. **Edit existing files** using `edit_file` or `edit_file_lines`
-7. Use that information to provide accurate answers or complete tasks
+1. **Get the working directory** using `get_working_directory`
+2. **Explore project structure** using `list_directory`
+3. **Search for relevant files** using `find_file_in_project`
+4. **Read file contents** using `read_file`
+5. **Find specific patterns** in code using `find_in_file`
+6. **Create new files** using `create_file`
+7. **Open files in Vim** using `open_file`
+8. **Edit existing files** using `edit_file` or `edit_file_lines`
+9. Use that information to provide accurate answers or complete tasks
 
 ### Example Usage
+
+**Exploring the Project:**
+```vim
+:Ask "What is the structure of this project?"
+```
+
+The AI might:
+1. Use `get_working_directory` to see the project root
+2. Use `list_directory` to explore the top-level structure
+3. Use `list_directory` on subdirectories to understand organization
+4. Provide a summary of the project layout and key directories
 
 **Finding Information:**
 ```vim
