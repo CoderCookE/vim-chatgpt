@@ -216,8 +216,9 @@ if !exists("g:chat_gpt_lang")
 endif
 
 if !exists("g:chat_gpt_split_direction")
-  let g:chat_gpt_split_direction = 'horizontal'
+  let g:chat_gpt_split_direction = 'vertical'
 endif
+
 
 if !exists("g:split_ratio")
   let g:split_ratio = 3

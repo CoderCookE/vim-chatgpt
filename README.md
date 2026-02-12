@@ -47,11 +47,16 @@ let g:openai_api_key='sk-...'
 let g:chat_gpt_model='gpt-4o'  " Optional: specify model
 ```
 
-**With Proxy:**
+**With Proxy or Custom Base URL:**
 ```bash
 export OPENAI_PROXY="http://localhost:1087"
 # or
 export OPENAI_API_BASE='https://openai.xxx.cloud/v1'
+```
+
+Or in your `.vimrc`:
+```vim
+let g:openai_base_url='https://openai.xxx.cloud/v1'  " Custom base URL (alternative to env vars)
 ```
 
 **Azure OpenAI:**
@@ -126,6 +131,7 @@ Or in your `.vimrc`:
 let g:chat_gpt_provider = 'openrouter'
 let g:openrouter_api_key = 'sk-or-...'
 let g:openrouter_model = 'anthropic/claude-3.5-sonnet'  " Choose any available model
+let g:openrouter_base_url = 'https://openrouter.ai/api/v1'  " Optional: custom base URL (default shown)
 ```
 
 ## Customization
@@ -154,6 +160,7 @@ let g:chat_gpt_lang = 'Chinese'
 let g:chat_gpt_split_direction = 'vertical'
 let g:split_ratio=4
 let g:chat_gpt_enable_tools=1
+let g:chat_persona='default'
 ```
 
 **Option Details:**
@@ -161,15 +168,20 @@ let g:chat_gpt_enable_tools=1
  - **g:chat_gpt_provider**: Select which AI provider to use. Options: `'openai'`, `'anthropic'`, `'gemini'`, `'ollama'`, `'openrouter'`. Default: `'openai'`
  - **g:chat_gpt_max_tokens**: Maximum number of tokens in the AI response. Default: 2000
  - **g:chat_gpt_model**: Model name for OpenAI (e.g., `'gpt-4o'`, `'gpt-3.5-turbo'`, `'o1'`). Note: When using other providers, use their respective model variables instead.
- - **g:chat_gpt_session_mode**: Maintain persistent conversation history. Default: 1 (on)
+ - **g:chat_gpt_session_mode**: Maintain persistent conversation history across sessions. Default: 1 (enabled). When enabled, conversations are saved to `.vim-chatgpt/history.txt`. Set to 0 to disable history persistence.
  - **g:chat_gpt_temperature**: Controls response randomness (0.0-1.0). Higher = more creative, lower = more focused. Default: 0.7
- - **g:chat_gpt_lang**: Request responses in a specific language (e.g., `'Chinese'`, `'Spanish'`)
- - **g:chat_gpt_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'horizontal'`
+ - **g:chat_gpt_lang**: Request responses in a specific language (e.g., `'Chinese'`, `'Spanish'`). Default: none (English)
+ - **g:chat_gpt_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'vertical'`
  - **g:split_ratio**: Split window size ratio. If set to 4, the window will be 1/4 of the screen. Default: 3
+ - **g:chat_persona**: Default AI persona to load on startup. Must match a key in `g:gpt_personas` or `g:chat_gpt_custom_persona`. Default: `'default'`. See [Custom Personas](#custom-personas) section.
  - **g:chat_gpt_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
  - **g:chat_gpt_require_plan_approval**: Require user approval before executing tool-based plans. When enabled, the AI will present a plan first, wait for approval, then execute tools in batches of 3 iterations with review points. Default: 1 (enabled).
  - **g:chat_gpt_summary_compaction_size**: Trigger summary regeneration after this many bytes of new conversation since last summary. Default: 51200 (50KB). This implements automatic conversation compaction.
  - **g:chat_gpt_recent_history_size**: Keep this many bytes of recent conversation uncompressed. Older content gets compressed into summary. Default: 20480 (20KB). Controls the sliding window size.
+
+**Advanced Options:**
+
+ - **g:chat_gpt_suppress_display**: Internal flag to suppress response display in buffer. Default: 0 (show responses). Used internally by commands like `:GenerateCommit`, `:GptGenerateContext`, and `:GptGenerateSummary`. Not recommended for manual use.
 
 ## AI Tools & Function Calling
 
