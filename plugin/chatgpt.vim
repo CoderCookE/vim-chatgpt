@@ -619,7 +619,6 @@ def get_tool_definitions():
 def execute_tool(tool_name, arguments):
     """Execute a tool with given arguments"""
     import subprocess
-    import glob as glob_module
 
     try:
         if tool_name == "get_working_directory":
