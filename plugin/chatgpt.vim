@@ -1781,14 +1781,14 @@ def chat_gpt(prompt):
         plan_display += f"{plan_type} FOR APPROVAL:\n"
         plan_display += "="*60 + "\n"
 
+        # Show AI's explanation if provided
         if accumulated_content.strip():
-          # Show the plan that was just presented
-          plan_display += accumulated_content.strip()
-        else:
-          # If no plan was provided, list the tools that will be called
-          plan_display += "AI wants to use the following tools:\n"
-          for i, tc in enumerate(tool_calls_to_process, 1):
-            plan_display += f"{i}. {tc['name']}\n"
+          plan_display += accumulated_content.strip() + "\n"
+
+        # Always show the actual tools that will be called
+        plan_display += "\nTools to execute:\n"
+        for i, tc in enumerate(tool_calls_to_process, 1):
+          plan_display += f"  {i}. {tc['name']}({', '.join(f'{k}={repr(v)[:50]}' for k, v in tc['arguments'].items())})\n"
 
         plan_display += "\n" + "="*60 + "\n\n"
 
