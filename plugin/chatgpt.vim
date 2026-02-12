@@ -1628,23 +1628,42 @@ def chat_gpt(prompt):
         history_content = f.read()
 
       # Parse history (same format as before)
-      history_text = history_content.split('\n\n>>>')
+      history_text = history_content.split('\n\n\x01>>>')
       history_text.reverse()
 
-      # Adding messages to history until token limit is reached
-      token_count = token_limits.get(model, 100000) - max_tokens - len(prompt) - len(system_message)
-
+      # Parse all messages from recent history
+      parsed_messages = []
       for line in history_text:
-        if ':\n' in line:
-          role, message = line.split(":\n", 1)
+        if ':\x01\n' in line:
+          role, message = line.split(":\x01\n", 1)
+          parsed_messages.append({
+              "role": role.lower(),
+              "content": message
+          })
 
-          token_count -= len(message)
+      # Always include last 4 messages (to maintain conversation context even after compaction)
+      min_messages = 4
+      if len(parsed_messages) >= min_messages:
+        # Take last 4 messages
+        history = parsed_messages[-min_messages:]
+        remaining_messages = parsed_messages[:-min_messages]
+      else:
+        # Take all messages if less than 4
+        history = parsed_messages[:]
+        remaining_messages = []
 
-          if token_count > 0:
-            history.insert(0, {
-                "role": role.lower(),
-                "content": message
-            })
+      # Calculate remaining token budget after including last 4 messages
+      token_count = token_limits.get(model, 100000) - max_tokens - len(prompt) - len(system_message)
+      for msg in history:
+        token_count -= len(msg['content'])
+
+      # Add older messages (from recent history window) until token limit
+      for msg in reversed(remaining_messages):
+        token_count -= len(msg['content'])
+        if token_count > 0:
+          history.insert(0, msg)
+        else:
+          break
     except Exception as e:
       # Silently ignore errors reading history
       pass
@@ -1970,10 +1989,11 @@ function! GenerateConversationSummary()
   let prompt .= "\n\nIMPORTANT: Use the read_file tool to read .vim-chatgpt/history.txt"
 
   if old_cutoff > 0
-    let prompt .= "\n\nThis is a summary UPDATE (compaction). The current summary covers conversation up to byte " . old_cutoff . "."
-    let prompt .= "\nYou need to read and summarize the portion from byte " . old_cutoff . " to byte " . new_cutoff . "."
+    let prompt .= "\n\nThis is a summary UPDATE (incremental compaction). The current summary covers conversation up to byte " . old_cutoff . "."
+    let prompt .= "\nYou need to read and summarize ONLY the NEW portion from byte " . old_cutoff . " to byte " . new_cutoff . "."
     let prompt .= "\nFirst use read_file to read the EXISTING summary from .vim-chatgpt/summary.md, then read the NEW content from .vim-chatgpt/history.txt."
-    let prompt .= "\nMerge the existing summary with insights from the new content."
+    let prompt .= "\n\nIMPORTANT: Keep the ENTIRE existing summary as-is. Only ADD new insights from the new conversation portion."
+    let prompt .= "\nDo NOT re-summarize old content. Only append new topics, preferences, and action items discovered in the new portion."
   else
     let prompt .= "\n\nThis is the FIRST summary. Read .vim-chatgpt/history.txt and summarize everything up to byte " . new_cutoff . "."
   endif
