@@ -1805,9 +1805,9 @@ def chat_gpt(prompt):
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
 
-        # Switch back to previous window so user can see and respond to input prompt
-        # This must happen before showing input(), not just when displaying
-        vim.command("wincmd p")
+        # Switch to first window (original editing window) so user can see and respond to input prompt
+        # The input() prompt appears on the command line which is always visible, but we need to be in the right window
+        vim.command("1wincmd w")  # Focus first window
         vim.command("redraw")  # Force screen update before showing input prompt
 
         approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
