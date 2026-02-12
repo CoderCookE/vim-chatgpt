@@ -5,14 +5,14 @@ This Vim plugin brings the power of AI language models into your Vim editor, ena
 **Supported Providers:**
 - OpenAI (ChatGPT, GPT-4, etc.)
 - Anthropic (Claude)
-- Google (Gemini)
+- Gemini (Google)
 - Ollama (local models)
 - OpenRouter (unified API for multiple providers)
 
 ## Prerequisites
 
 1) Vim with Python3 support.
-2) An API key from your chosen provider (OpenAI, Anthropic, Google, or OpenRouter).
+2) An API key from your chosen provider (OpenAI, Anthropic, Gemini, or OpenRouter).
 
 ## Installation
 
@@ -78,19 +78,29 @@ let g:anthropic_api_key = 'sk-ant-...'
 let g:anthropic_model = 'claude-sonnet-4-5-20250929'  " Optional
 ```
 
-#### Google (Gemini)
-
-Get your API key from: https://makersuite.google.com/app/apikey
-
+**With Custom Base URL (for proxies or custom deployments):**
 ```bash
-export GOOGLE_API_KEY='...'
+export ANTHROPIC_BASE_URL='https://your-proxy.com/v1'
 ```
 
 Or in your `.vimrc`:
 ```vim
-let g:chat_gpt_provider = 'google'
-let g:google_api_key = '...'
-let g:google_model = 'gemini-2.0-flash-exp'  " Optional
+let g:anthropic_base_url = 'https://your-proxy.com/v1'
+```
+
+#### Gemini (Google)
+
+Get your API key from: https://makersuite.google.com/app/apikey
+
+```bash
+export GEMINI_API_KEY='...'
+```
+
+Or in your `.vimrc`:
+```vim
+let g:chat_gpt_provider = 'gemini'
+let g:gemini_api_key = '...'
+let g:gemini_model = 'gemini-2.5-flash'  " Optional
 ```
 
 #### Ollama (Local Models)
@@ -124,12 +134,12 @@ let g:openrouter_model = 'anthropic/claude-3.5-sonnet'  " Choose any available m
 
 ```vim
 " Select your AI provider (default: 'openai')
-let g:chat_gpt_provider = 'openai'  " Options: 'openai', 'anthropic', 'google', 'ollama', 'openrouter'
+let g:chat_gpt_provider = 'openai'  " Options: 'openai', 'anthropic', 'gemini', 'ollama', 'openrouter'
 
 " Provider-specific models (optional - defaults shown)
 let g:chat_gpt_model = 'gpt-4o'                           " For OpenAI
 let g:anthropic_model = 'claude-sonnet-4-5-20250929'      " For Anthropic
-let g:google_model = 'gemini-2.0-flash-exp'               " For Google
+let g:gemini_model = 'gemini-2.5-flash'               " For Gemini
 let g:ollama_model = 'llama3.2'                           " For Ollama
 let g:openrouter_model = 'anthropic/claude-3.5-sonnet'    " For OpenRouter
 ```
@@ -148,7 +158,7 @@ let g:chat_gpt_enable_tools=1
 
 **Option Details:**
 
- - **g:chat_gpt_provider**: Select which AI provider to use. Options: `'openai'`, `'anthropic'`, `'google'`, `'ollama'`, `'openrouter'`. Default: `'openai'`
+ - **g:chat_gpt_provider**: Select which AI provider to use. Options: `'openai'`, `'anthropic'`, `'gemini'`, `'ollama'`, `'openrouter'`. Default: `'openai'`
  - **g:chat_gpt_max_tokens**: Maximum number of tokens in the AI response. Default: 2000
  - **g:chat_gpt_model**: Model name for OpenAI (e.g., `'gpt-4o'`, `'gpt-3.5-turbo'`, `'o1'`). Note: When using other providers, use their respective model variables instead.
  - **g:chat_gpt_session_mode**: Maintain persistent conversation history. Default: 1 (on)
@@ -556,7 +566,7 @@ Brings AI language model capabilities into Vim editor for code assistance
 ## Tech Stack
 - VimScript
 - Python 3
-- Multiple AI providers (OpenAI, Anthropic, Google, Ollama, OpenRouter)
+- Multiple AI providers (OpenAI, Anthropic, Gemini, Ollama, OpenRouter)
 
 ## Structure
 - plugin/chatgpt.vim - Main plugin file with VimScript and embedded Python
@@ -716,7 +726,7 @@ python3.13 -c "import requests; print('✓ Success')"
 - For other providers, check `:echo g:anthropic_model`, etc.
 
 ## Notes
-This plugin is not affiliated with or endorsed by OpenAI, Anthropic, Google, or any other AI provider. You are responsible for managing your API usage and any associated costs when using this plugin.
+This plugin is not affiliated with or endorsed by OpenAI, Anthropic, Google/Gemini, or any other AI provider. You are responsible for managing your API usage and any associated costs when using this plugin.
 
 ## Migration from OpenAI SDK
 
@@ -733,7 +743,7 @@ If you're upgrading from an older version:
 - ChatGPT
 - Claude
 - Anthropic
-- Google Gemini
+- Gemini
 - Ollama
 - OpenRouter
 - Code assistance

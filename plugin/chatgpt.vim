@@ -191,13 +191,17 @@ if !exists("g:anthropic_model")
   let g:anthropic_model = 'claude-sonnet-4-5-20250929'
 endif
 
-" Google (Gemini) configuration
-if !exists("g:google_api_key")
-  let g:google_api_key = ''
+if !exists("g:anthropic_base_url")
+  let g:anthropic_base_url = 'https://api.anthropic.com/v1'
 endif
 
-if !exists("g:google_model")
-  let g:google_model = 'gemini-2.0-flash-exp'
+" Gemini (Google) configuration
+if !exists("g:gemini_api_key")
+  let g:gemini_api_key = ''
+endif
+
+if !exists("g:gemini_model")
+  let g:gemini_model = 'gemini-2.5-flash'
 endif
 
 " Ollama configuration
@@ -842,7 +846,7 @@ class BaseProvider:
         """Format messages for provider's API"""
         raise NotImplementedError("Subclasses must implement create_messages()")
 
-    def stream_chat(self, messages, model, temperature, max_tokens):
+    def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """
         Stream chat completion chunks
         Yields: (content_delta, finish_reason, tool_calls)
@@ -953,6 +957,11 @@ class OpenAIProvider(BaseProvider):
             payload['max_completion_tokens'] = max_tokens
 
         response = requests.post(url, headers=headers, json=payload, stream=True)
+
+        # Check for HTTP errors
+        if response.status_code != 200:
+            error_body = response.text
+            raise Exception(f"OpenAI API error (status {response.status_code}): {error_body}")
 
         # Parse Server-Sent Events stream
         tool_calls_accumulator = {}  # Accumulate tool call chunks by index
@@ -1082,12 +1091,24 @@ class AnthropicProvider(BaseProvider):
         if tools:
             payload['tools'] = self.format_tools_for_api(tools)
 
+        # Construct URL - ensure we have /v1/messages endpoint
+        base_url = self.config['base_url'].rstrip('/')
+        # Add /v1 if not already present
+        if not base_url.endswith('/v1'):
+            base_url = f"{base_url}/v1"
+        url = f"{base_url}/messages"
+
         response = requests.post(
-            'https://api.anthropic.com/v1/messages',
+            url,
             headers=headers,
             json=payload,
             stream=True
         )
+
+        # Check for HTTP errors
+        if response.status_code != 200:
+            error_body = response.text
+            raise Exception(f"Anthropic API error (status {response.status_code}) at {url}: {error_body}")
 
         # Parse Server-Sent Events stream
         tool_use_blocks = {}  # Accumulate tool use blocks
@@ -1159,13 +1180,13 @@ class GoogleProvider(BaseProvider):
     """Google Gemini provider using HTTP requests"""
 
     def validate_config(self):
-        """Validate Google configuration"""
+        """Validate Gemini configuration"""
         if not self.config.get('api_key'):
-            raise ValueError("Google API key required. Set GOOGLE_API_KEY or g:google_api_key")
+            raise ValueError("Gemini API key required. Set GEMINI_API_KEY or g:gemini_api_key")
 
     def get_model(self):
         """Get the model name from config"""
-        return self.config.get('model', 'gemini-2.0-flash-exp')
+        return self.config.get('model', 'gemini-2.5-flash')
 
     def create_messages(self, system_message, history, user_message):
         """Create messages in Gemini format"""
@@ -1193,7 +1214,7 @@ class GoogleProvider(BaseProvider):
             'contents': contents
         }
 
-    def stream_chat(self, messages, model, temperature, max_tokens):
+    def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """Stream chat completion from Google Gemini"""
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?key={self.config['api_key']}"
 
@@ -1208,26 +1229,60 @@ class GoogleProvider(BaseProvider):
 
         response = requests.post(url, json=payload, stream=True)
 
-        for line in response.iter_lines():
-            if not line:
-                continue
+        # Check for HTTP errors
+        if response.status_code != 200:
+            error_body = response.text
+            raise Exception(f"Gemini API error (status {response.status_code}): {error_body}")
 
-            try:
-                chunk = json.loads(line)
-                if 'candidates' in chunk and chunk['candidates']:
-                    candidate = chunk['candidates'][0]
+        # Gemini streaming sends JSON array with one element per chunk
+        # Read the raw text response
+        response_text = response.text
+
+        # Parse as JSON array
+        try:
+            response_data = json.loads(response_text)
+
+            # Response is an array of chunks
+            if isinstance(response_data, list):
+                for item in response_data:
+                    # Check for errors
+                    if 'error' in item:
+                        raise Exception(f"Gemini API error: {json.dumps(item['error'])}")
+
+                    if 'candidates' in item and item['candidates']:
+                        candidate = item['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content']:
+                            for part in candidate['content']['parts']:
+                                text = part.get('text', '')
+                                if text:
+                                    # Yield the full text at once
+                                    yield (text, '', None)
+                        finish_reason = candidate.get('finishReason', '')
+                        if finish_reason:
+                            if finish_reason == 'STOP':
+                                yield ('', 'stop', None)
+                            else:
+                                yield ('', finish_reason, None)
+            elif isinstance(response_data, dict):
+                # Single object response
+                if 'error' in response_data:
+                    raise Exception(f"Gemini API error: {json.dumps(response_data['error'])}")
+
+                if 'candidates' in response_data and response_data['candidates']:
+                    candidate = response_data['candidates'][0]
                     if 'content' in candidate and 'parts' in candidate['content']:
                         for part in candidate['content']['parts']:
                             text = part.get('text', '')
                             if text:
                                 yield (text, '', None)
                     finish_reason = candidate.get('finishReason', '')
-                    if finish_reason and finish_reason != 'STOP':
-                        yield ('', finish_reason, None)
-                    elif finish_reason == 'STOP':
-                        yield ('', 'stop', None)
-            except json.JSONDecodeError:
-                continue
+                    if finish_reason:
+                        if finish_reason == 'STOP':
+                            yield ('', 'stop', None)
+                        else:
+                            yield ('', finish_reason, None)
+        except json.JSONDecodeError as e:
+            raise Exception(f"Failed to parse Gemini response: {str(e)}")
 
 
 class OllamaProvider(BaseProvider):
@@ -1249,7 +1304,7 @@ class OllamaProvider(BaseProvider):
         messages.append({"role": "user", "content": user_message})
         return messages
 
-    def stream_chat(self, messages, model, temperature, max_tokens):
+    def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """Stream chat completion from Ollama"""
         url = f"{self.config['base_url']}/api/chat"
 
@@ -1264,6 +1319,11 @@ class OllamaProvider(BaseProvider):
         }
 
         response = requests.post(url, json=payload, stream=True)
+
+        # Check for HTTP errors
+        if response.status_code != 200:
+            error_body = response.text
+            raise Exception(f"Ollama API error (status {response.status_code}): {error_body}")
 
         for line in response.iter_lines():
             if not line:
@@ -1303,7 +1363,7 @@ class OpenRouterProvider(BaseProvider):
         messages.append({"role": "user", "content": user_message})
         return messages
 
-    def stream_chat(self, messages, model, temperature, max_tokens):
+    def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """Stream chat completion from OpenRouter"""
         url = f"{self.config['base_url']}/chat/completions"
 
@@ -1322,6 +1382,11 @@ class OpenRouterProvider(BaseProvider):
         }
 
         response = requests.post(url, headers=headers, json=payload, stream=True)
+
+        # Check for HTTP errors
+        if response.status_code != 200:
+            error_body = response.text
+            raise Exception(f"OpenRouter API error (status {response.status_code}): {error_body}")
 
         # Parse Server-Sent Events stream (OpenAI-compatible)
         for line in response.iter_lines():
@@ -1357,14 +1422,15 @@ def create_provider(provider_name):
     if provider_name == 'anthropic':
         config = {
             'api_key': os.getenv('ANTHROPIC_API_KEY') or safe_vim_eval('g:anthropic_api_key'),
-            'model': safe_vim_eval('g:anthropic_model')
+            'model': safe_vim_eval('g:anthropic_model'),
+            'base_url': os.getenv('ANTHROPIC_BASE_URL') or safe_vim_eval('g:anthropic_base_url')
         }
         return AnthropicProvider(config)
 
-    elif provider_name == 'google':
+    elif provider_name == 'gemini':
         config = {
-            'api_key': os.getenv('GOOGLE_API_KEY') or safe_vim_eval('g:google_api_key'),
-            'model': safe_vim_eval('g:google_model')
+            'api_key': os.getenv('GEMINI_API_KEY') or safe_vim_eval('g:gemini_api_key'),
+            'model': safe_vim_eval('g:gemini_model')
         }
         return GoogleProvider(config)
 
@@ -1628,6 +1694,28 @@ def chat_gpt(prompt):
         vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools... (iteration {0})]\\n', '', '{1}')".format(tool_iteration, chunk_session_id))
         vim.command("redraw")
 
+      # For Anthropic, we need to add the assistant message with ALL tool_use blocks first
+      if provider_name == 'anthropic' and isinstance(messages, dict) and 'messages' in messages:
+        # Build assistant message with text + all tool_use blocks
+        assistant_content = []
+        if accumulated_content.strip():
+          assistant_content.append({"type": "text", "text": accumulated_content})
+
+        for tool_call in tool_calls_to_process:
+          assistant_content.append({
+            "type": "tool_use",
+            "id": tool_call['id'],
+            "name": tool_call['name'],
+            "input": tool_call['arguments']
+          })
+
+        messages['messages'].append({
+          "role": "assistant",
+          "content": assistant_content
+        })
+
+      # Now execute tools and collect results
+      tool_results = []
       for tool_call in tool_calls_to_process:
         tool_name = tool_call['name']
         tool_args = tool_call['arguments']
@@ -1635,6 +1723,7 @@ def chat_gpt(prompt):
 
         # Execute the tool
         tool_result = execute_tool(tool_name, tool_args)
+        tool_results.append((tool_id, tool_name, tool_args, tool_result))
 
         # Display tool usage in session
         if not suppress_display:
@@ -1642,12 +1731,12 @@ def chat_gpt(prompt):
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
 
-        # Add tool call and result to messages for next iteration
-        # Format depends on provider
-        if provider_name == 'openai':
-          # OpenAI format
-          if isinstance(messages, list):
-            # Add assistant message with tool calls
+      # Add tool results to messages - format depends on provider
+      if provider_name == 'openai':
+        # OpenAI format - add each tool call and result individually
+        if isinstance(messages, list):
+          for tool_id, tool_name, tool_args, tool_result in tool_results:
+            # Add assistant message with tool call
             messages.append({
               "role": "assistant",
               "content": None,
@@ -1666,18 +1755,21 @@ def chat_gpt(prompt):
               "tool_call_id": tool_id,
               "content": tool_result
             })
-        elif provider_name == 'anthropic':
-          # Anthropic format
-          if isinstance(messages, dict) and 'messages' in messages:
-            # Add user message with tool result
-            messages['messages'].append({
-              "role": "user",
-              "content": [{
-                "type": "tool_result",
-                "tool_use_id": tool_id,
-                "content": tool_result
-              }]
+      elif provider_name == 'anthropic':
+        # Anthropic format - add ONE user message with ALL tool_result blocks
+        if isinstance(messages, dict) and 'messages' in messages:
+          tool_result_content = []
+          for tool_id, tool_name, tool_args, tool_result in tool_results:
+            tool_result_content.append({
+              "type": "tool_result",
+              "tool_use_id": tool_id,
+              "content": tool_result
             })
+
+          messages['messages'].append({
+            "role": "user",
+            "content": tool_result_content
+          })
 
   except Exception as e:
     print(f"Error streaming from {provider_name}: {str(e)}")
