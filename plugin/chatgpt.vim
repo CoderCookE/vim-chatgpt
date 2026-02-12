@@ -40,6 +40,11 @@ if !exists("g:chat_gpt_enable_tools")
   let g:chat_gpt_enable_tools = 1
 endif
 
+" Require plan approval before tool execution (default: enabled when tools are enabled)
+if !exists("g:chat_gpt_require_plan_approval")
+  let g:chat_gpt_require_plan_approval = 1
+endif
+
 " Provider selection (default to openai for backward compatibility)
 if !exists("g:chat_gpt_provider")
   let g:chat_gpt_provider = 'openai'
@@ -1268,6 +1273,13 @@ def chat_gpt(prompt):
   persona = str(vim.eval('g:chat_persona'))
   system_message = f"{personas[persona]} {resp}"
 
+  # Add planning instruction if tools are enabled and plan approval required
+  enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
+  require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
+
+  if enable_tools and require_plan_approval and provider.supports_tools():
+    system_message += "\n\nWhen you need to use tools, first create a clear, step-by-step plan explaining what you will do and which tools you'll use. Present this plan to the user for approval before proceeding with tool execution."
+
   # Session history management
   history = []
   session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1 else None
@@ -1324,8 +1336,12 @@ def chat_gpt(prompt):
   # Stream response using provider (with tool calling loop)
   try:
     chunk_session_id = session_id if session_id else 'gpt-response'
-    max_tool_iterations = 5  # Prevent infinite loops
+    max_tool_iterations = 15  # Maximum total iterations
     tool_iteration = 0
+    batch_size = 3  # Execute tools in batches of 3
+    batch_iteration = 0
+    plan_approved = not require_plan_approval  # Skip approval if not required
+    accumulated_plan = ""  # Accumulate plan text for approval
 
     while tool_iteration < max_tool_iterations:
       tool_calls_to_process = None
@@ -1333,6 +1349,10 @@ def chat_gpt(prompt):
       for content, finish_reason, tool_calls in provider.stream_chat(messages, model, temperature, max_tokens, tools):
         # Display content as it streams
         if content:
+          # Accumulate plan text on first iteration (before approval)
+          if tool_iteration == 0 and not plan_approved:
+            accumulated_plan += content
+
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
 
@@ -1348,9 +1368,54 @@ def chat_gpt(prompt):
       if not tool_calls_to_process:
         break
 
+      # Request plan approval on first tool use
+      if not plan_approved and tool_iteration == 0:
+        # Show a separator and the accumulated plan
+        plan_display = "\\n\\n" + "="*60 + "\\n"
+        plan_display += "PLAN FOR APPROVAL:\\n"
+        plan_display += "="*60 + "\\n"
+
+        if accumulated_plan.strip():
+          # Show the plan that was just presented
+          plan_display += accumulated_plan.strip()
+        else:
+          # If no plan was provided, list the tools that will be called
+          plan_display += "AI wants to use the following tools:\\n"
+          for i, tc in enumerate(tool_calls_to_process, 1):
+            plan_display += f"{i}. {tc['name']}\\n"
+
+        plan_display += "\\n" + "="*60 + "\\n\\n"
+
+        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
+        vim.command("redraw")
+
+        approval = vim.eval("input('Approve plan? [y]es to proceed, [n]o to cancel: ')")
+
+        if approval.lower() not in ['y', 'yes']:
+          vim.command("call DisplayChatGPTResponse('\\n\\n[Plan cancelled by user]\\n', '', '{0}')".format(chunk_session_id))
+          vim.command("redraw")
+          break
+
+        plan_approved = True
+        vim.command("call DisplayChatGPTResponse('\\n\\n[Plan approved. Executing...]\\n', '', '{0}')".format(chunk_session_id))
+        vim.command("redraw")
+
+      # Check if we need user approval to continue (every 3 iterations after the first batch)
+      if plan_approved and batch_iteration > 0 and batch_iteration % batch_size == 0:
+        vim.command("call DisplayChatGPTResponse('\\n\\n[Completed {0} tool iterations. Continue?]\\n', '', '{1}')".format(batch_iteration, chunk_session_id))
+        vim.command("redraw")
+
+        continue_approval = vim.eval("input('[y]es to continue, [n]o to stop: ')")
+
+        if continue_approval.lower() not in ['y', 'yes']:
+          vim.command("call DisplayChatGPTResponse('\\n\\n[Execution stopped by user]\\n', '', '{0}')".format(chunk_session_id))
+          vim.command("redraw")
+          break
+
       # Execute tools and add results to messages
       tool_iteration += 1
-      vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools...]\\n', '', '{0}')".format(chunk_session_id))
+      batch_iteration += 1
+      vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools... (iteration {0})]\\n', '', '{1}')".format(tool_iteration, chunk_session_id))
       vim.command("redraw")
 
       for tool_call in tool_calls_to_process:

@@ -157,10 +157,28 @@ let g:chat_gpt_enable_tools=1
  - **g:chat_gpt_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'horizontal'`
  - **g:split_ratio**: Split window size ratio. If set to 4, the window will be 1/4 of the screen. Default: 3
  - **g:chat_gpt_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
+ - **g:chat_gpt_require_plan_approval**: Require user approval before executing tool-based plans. When enabled, the AI will present a plan first, wait for approval, then execute tools in batches of 3 iterations with review points. Default: 1 (enabled).
 
 ## AI Tools & Function Calling
 
 The plugin includes a powerful tools framework that allows AI agents to interact with your codebase. When enabled, the AI can autonomously use tools to search files, read code, and find information to better answer your questions.
+
+### Planning Workflow
+
+When `g:chat_gpt_require_plan_approval` is enabled (default), the AI follows a structured planning workflow:
+
+1. **Plan Creation**: The AI analyzes your request and creates a step-by-step plan listing which tools it will use
+2. **User Approval**: You review the plan and approve or cancel execution
+3. **Batch Execution**: Tools are executed in batches of 3 iterations
+4. **Review Points**: After each batch of 3 iterations, you can review progress and choose to continue or stop
+5. **Completion**: The AI presents final results after all approved iterations
+
+This workflow gives you control over what the AI does to your codebase and allows you to stop execution at any point.
+
+**Disable plan approval** (tools execute immediately without confirmation):
+```vim
+let g:chat_gpt_require_plan_approval = 0
+```
 
 ### Available Tools
 
@@ -247,6 +265,50 @@ The AI might:
 1. Use `read_file` to view the current content and line numbers
 2. Use `edit_file_lines` to efficiently replace the specific line range
 3. Confirm the changes without reading the entire file into memory
+
+**Planning Workflow Example:**
+```vim
+:Ask "Refactor the authentication module to use JWT tokens"
+```
+
+With `g:chat_gpt_require_plan_approval` enabled, the workflow looks like:
+
+1. **AI presents plan:**
+   ```
+   I'll refactor the authentication to use JWT tokens:
+   1. find_file_in_project to locate auth files
+   2. read_file to understand current implementation
+   3. create_file to add JWT utility functions
+   4. edit_file to update login/logout functions
+   5. edit_file to update middleware
+
+   ============================================================
+   PLAN FOR APPROVAL:
+   ============================================================
+   I'll refactor the authentication to use JWT tokens:
+   1. find_file_in_project to locate auth files
+   2. read_file to understand current implementation
+   3. create_file to add JWT utility functions
+   4. edit_file to update login/logout functions
+   5. edit_file to update middleware
+   ============================================================
+   ```
+
+2. **You approve:** `Approve plan? [y]es to proceed, [n]o to cancel: y`
+
+3. **AI executes (iterations 1-3):**
+   - Finds and reads auth files
+   - Creates JWT utility file
+
+4. **Review point:** `[Completed 3 tool iterations. Continue?] [y]es to continue, [n]o to stop: y`
+
+5. **AI continues (iterations 4-6):**
+   - Updates login function
+   - Updates logout function
+
+6. **Review point:** `[Completed 6 tool iterations. Continue?] [y]es to continue, [n]o to stop: y`
+
+7. **AI completes final steps**
 
 ### Supported Providers
 
