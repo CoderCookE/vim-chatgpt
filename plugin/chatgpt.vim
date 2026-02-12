@@ -1907,7 +1907,10 @@ chat_gpt(vim.eval('a:prompt'))
 EOF
 
   " Check if summary needs updating after AI response completes
-  call s:check_and_update_summary()
+  " Skip during background operations (context/summary generation)
+  if !exists('g:chat_gpt_suppress_display') || g:chat_gpt_suppress_display == 0
+    call s:check_and_update_summary()
+  endif
 endfunction
 
 " Function to send highlighted code to ChatGPT
