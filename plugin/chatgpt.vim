@@ -8,6 +8,15 @@ endif
 
 " Function to check if context file exists and auto-generate if not or if old
 function! s:check_and_generate_context()
+    " Skip if Vim was opened with a specific file (not a directory)
+    if argc() > 0
+        let first_arg = argv(0)
+        " If the argument is a file (not a directory), skip context generation
+        if filereadable(first_arg) && !isdirectory(first_arg)
+            return
+        endif
+    endif
+
     " Use directory of the file being edited, or current directory if no file
     let current_file = expand('%:p')
     if empty(current_file) || !filereadable(current_file)
@@ -17,6 +26,7 @@ function! s:check_and_generate_context()
         " Get directory of the file being edited
         let project_dir = expand('%:p:h')
     endif
+
 
     let home = expand('~')
 
@@ -709,8 +719,8 @@ def execute_tool(tool_name, arguments):
                 files = [f for f in files if f]  # Remove empty strings
                 if len(files) > max_results:
                     files = files[:max_results]
-                    return '\n'.join(files) + f'\n... ({len(files)} results shown, more available)'
-                return '\n'.join(files) if files else f"No files found matching pattern: {pattern}"
+                    return '\n'.join(files) + f'\n... ({len(files)} results shown, more available)' + "\n"
+                return '\n'.join(files) if files else f"No files found matching pattern: {pattern}" + "\n"
             else:
                 return f"Error finding files: {result.stderr.strip()}"
 
@@ -726,7 +736,7 @@ def execute_tool(tool_name, arguments):
                             lines.append(f"... (truncated at {max_lines} lines)")
                             break
                         lines.append(line.rstrip())
-                    return '\n'.join(lines)
+                    return '\n'.join(lines) + "\n"
             except FileNotFoundError:
                 return f"File not found: {file_path}"
             except PermissionError:
@@ -1635,7 +1645,7 @@ def chat_gpt(prompt):
   require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
 
   if enable_tools and require_plan_approval and provider.supports_tools():
-    system_message += "\n\nWhen you need to use tools, first create a clear, step-by-step plan explaining what you will do and which tools you'll use. Present this plan to the user for approval before proceeding with tool execution.\n\nAfter each tool execution, evaluate the results:\n- If the result is unexpected or requires a different approach, explain why and present a REVISED PLAN for approval\n- If the result is as expected, continue with the next step\n- If the task is complete, summarize what was accomplished\n\nStart any revised plan with '=== REVISED PLAN ===' so it can be clearly identified."
+    system_message += "\n\nWhen you need to use tools, first create a clear, step-by-step plan explaining what you will do and which tools you'll use. Present this plan to the user for approval before proceeding with tool execution.\n\nAfter each tool execution, evaluate the results:\n- If the result is unexpected or requires a different approach, explain why and present a REVISED PLAN for approval\n- If the result is as expected, continue with the next step\n- If the task is complete, summarize what was accomplished\n\nStart any revised plan with '=== REVISED PLAN ===' so it can be clearly identified.\n"
 
   # Session history management
   history = []
