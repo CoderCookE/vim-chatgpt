@@ -749,6 +749,41 @@ def execute_tool(tool_name, arguments):
                 if directory and not os.path.exists(directory):
                     os.makedirs(directory)
 
+                # Special handling for summary.md - prepend metadata automatically
+                if file_path.endswith('.vim-chatgpt/summary.md') or file_path.endswith('summary.md'):
+                    # Calculate metadata values
+                    import re
+                    from datetime import datetime
+
+                    history_file = os.path.join(os.path.dirname(file_path), 'history.txt')
+                    recent_window = int(safe_vim_eval('g:chat_gpt_recent_history_size') or 20480)
+
+                    # Get old cutoff from existing summary
+                    old_cutoff = 0
+                    if os.path.exists(file_path):
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            summary_content = f.read()
+                            match = re.search(r'cutoff_byte:\s*(\d+)', summary_content)
+                            if match:
+                                old_cutoff = int(match.group(1))
+
+                    # Calculate new cutoff
+                    if os.path.exists(history_file):
+                        history_size = os.path.getsize(history_file)
+                        new_cutoff = max(0, history_size - recent_window)
+                    else:
+                        new_cutoff = 0
+
+                    # Generate metadata header
+                    metadata = f"""<!-- SUMMARY_METADATA
+cutoff_byte: {new_cutoff}
+last_updated: {datetime.now().strftime('%Y-%m-%d')}
+-->
+
+"""
+                    # Prepend metadata to content
+                    content = metadata + content
+
                 # Write the file
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(content)
@@ -2004,12 +2039,6 @@ function! GenerateConversationSummary()
     endif
   endif
 
-  " Generate metadata header
-  let metadata = "<!-- SUMMARY_METADATA\n"
-  let metadata .= "cutoff_byte: " . new_cutoff . "\n"
-  let metadata .= "last_updated: " . strftime("%Y-%m-%d") . "\n"
-  let metadata .= "-->\n\n"
-
   " Create a prompt with the actual content
   let prompt = ""
 
@@ -2030,7 +2059,7 @@ function! GenerateConversationSummary()
     let prompt .= "Please create a comprehensive summary of this conversation."
   endif
 
-  let prompt .= "\n\nGenerate the summary using this format:"
+  let prompt .= "\n\nGenerate a summary using this format:"
   let prompt .= "\n\n# Conversation Summary"
   let prompt .= "\n\n## Key Topics Discussed"
   let prompt .= "\n[Bullet points of main topics and decisions made]"
@@ -2044,8 +2073,6 @@ function! GenerateConversationSummary()
   let prompt .= "\n\n## Action Items"
   let prompt .= "\n[Any pending tasks or future work mentioned]"
   let prompt .= "\n\nSave the summary to .vim-chatgpt/summary.md using the create_file tool with overwrite=true."
-  let prompt .= "\n\nIMPORTANT: Prepend this exact metadata header to the content:\n\n"
-  let prompt .= metadata
 
   " Use session mode 0 for one-time response, disable plan approval and suppress display
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
