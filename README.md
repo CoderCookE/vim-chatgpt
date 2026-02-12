@@ -1,43 +1,59 @@
 # ChatGPT Vim Plugin
 
-This Vim plugin brings the power of OpenAI's ChatGPT API into your Vim editor, enabling you to request code explanations or improvements directly within Vim. With this plugin, you can effortlessly highlight code snippets and ask ChatGPT to explain, review, or rewrite them, with the option to include additional context for better results.
+This Vim plugin brings the power of AI language models into your Vim editor, enabling you to request code explanations or improvements directly within Vim. With this plugin, you can effortlessly highlight code snippets and ask AI to explain, review, or rewrite them, with the option to include additional context for better results.
+
+**Supported Providers:**
+- OpenAI (ChatGPT, GPT-4, etc.)
+- Anthropic (Claude)
+- Google (Gemini)
+- Ollama (local models)
+- OpenRouter (unified API for multiple providers)
 
 ## Prerequisites
 
 1) Vim with Python3 support.
-1) A ChatGPT API key from OpenAI.
+2) An API key from your chosen provider (OpenAI, Anthropic, Google, or OpenRouter).
 
 ## Installation
-Add your ChatGPT API key to your environment:
-https://platform.openai.com/account/api-keys
 
-### Setup your environment
-To set up your environment, you can export the OPENAI_API_KEY variable in your terminal:
+### 1. Install Python Dependencies
+
+The plugin requires only the `requests` library:
 ```bash
-export OPENAI_API_KEY='your-api-key-here'
-```
-And more useful env is proxy:
-```bash
-export OPENAI_PROXY="http://localhost:1087"     # with proxy
-# or
-export OPENAI_API_BASE='https://openai.xxx.cloud/v1'        # refer: https://github.com/egoist/openai-proxy
+pip install requests
 ```
 
-Alternatively, you can add the following lines to your `.vimrc` file to set up the chatgpt plugin for Vim:
+### 2. Install the Plugin
+
+Copy the `chatgpt.vim` file to your Vim plugin directory. If you're using [vim-pathogen](https://github.com/tpope/vim-pathogen), add the `chatgpt` directory to your `bundle` directory.
+
+### 3. Choose Your AI Provider
+
+The plugin defaults to OpenAI for backward compatibility, but you can use any supported provider:
+
+#### OpenAI (Default)
+
+Get your API key from: https://platform.openai.com/account/api-keys
+
+```bash
+export OPENAI_API_KEY='sk-...'
+```
+
+Or in your `.vimrc`:
 ```vim
-let g:openai_api_key='your-api-key-here'
+let g:openai_api_key='sk-...'
+let g:chat_gpt_model='gpt-4o'  " Optional: specify model
 ```
 
-To install the chatgpt plugin, simply copy the `chatgpt.vim` file to your Vim plugin directory. If you're using [vim-pathogen](https://github.com/tpope/vim-pathogen), you can simply add the `chatgpt` directory to your `bundle` directory.
-
-Finally, to install the `openai` Python module, you can use pip:
+**With Proxy:**
 ```bash
-pip install openai
+export OPENAI_PROXY="http://localhost:1087"
+# or
+export OPENAI_API_BASE='https://openai.xxx.cloud/v1'
 ```
-[Detailed Direction For Installation](https://github.com/CoderCookE/vim-chatgpt/issues/4#issuecomment-1704607737)
 
-Additionally, for Azure gpt user:
-```
+**Azure OpenAI:**
+```vim
 let g:api_type = 'azure'
 let g:chat_gpt_key = 'your_azure_chatgpt_api'
 let g:azure_endpoint = 'your_azure_endpoint'
@@ -45,27 +61,98 @@ let g:azure_deployment = 'your_azure_deployment'
 let g:azure_api_version = '2023-03-15-preview'
 ```
 
+#### Anthropic (Claude)
+
+Get your API key from: https://console.anthropic.com/
+
+```bash
+export ANTHROPIC_API_KEY='sk-ant-...'
+```
+
+Or in your `.vimrc`:
+```vim
+let g:chat_gpt_provider = 'anthropic'
+let g:anthropic_api_key = 'sk-ant-...'
+let g:anthropic_model = 'claude-sonnet-4-5-20250929'  " Optional
+```
+
+#### Google (Gemini)
+
+Get your API key from: https://makersuite.google.com/app/apikey
+
+```bash
+export GOOGLE_API_KEY='...'
+```
+
+Or in your `.vimrc`:
+```vim
+let g:chat_gpt_provider = 'google'
+let g:google_api_key = '...'
+let g:google_model = 'gemini-2.0-flash-exp'  " Optional
+```
+
+#### Ollama (Local Models)
+
+Install Ollama from: https://ollama.ai
+
+```vim
+let g:chat_gpt_provider = 'ollama'
+let g:ollama_model = 'llama3.2'  " or codellama, mistral, etc.
+let g:ollama_base_url = 'http://localhost:11434'  " Optional
+```
+
+#### OpenRouter (Multi-Provider)
+
+Get your API key from: https://openrouter.ai/keys
+
+```bash
+export OPENROUTER_API_KEY='sk-or-...'
+```
+
+Or in your `.vimrc`:
+```vim
+let g:chat_gpt_provider = 'openrouter'
+let g:openrouter_api_key = 'sk-or-...'
+let g:openrouter_model = 'anthropic/claude-3.5-sonnet'  " Choose any available model
+```
+
 ## Customization
-In your `.vimrc` file you set the following options
+
+### Provider Configuration
+
+```vim
+" Select your AI provider (default: 'openai')
+let g:chat_gpt_provider = 'openai'  " Options: 'openai', 'anthropic', 'google', 'ollama', 'openrouter'
+
+" Provider-specific models (optional - defaults shown)
+let g:chat_gpt_model = 'gpt-4o'                           " For OpenAI
+let g:anthropic_model = 'claude-sonnet-4-5-20250929'      " For Anthropic
+let g:google_model = 'gemini-2.0-flash-exp'               " For Google
+let g:ollama_model = 'llama3.2'                           " For Ollama
+let g:openrouter_model = 'anthropic/claude-3.5-sonnet'    " For OpenRouter
+```
+
+### General Options
 
 ```vim
 let g:chat_gpt_max_tokens=2000
-let g:chat_gpt_model='gpt-4o'
-let g:chat_gpt_session_mode=0
+let g:chat_gpt_session_mode=1
 let g:chat_gpt_temperature = 0.7
 let g:chat_gpt_lang = 'Chinese'
 let g:chat_gpt_split_direction = 'vertical'
 let g:split_ratio=4
 ```
 
- - g:chat_gpt_max_tokens: This option allows you to set the maximum number of tokens (words or characters) that the ChatGPT API will return in its response. By default, it is set to 2000 tokens. You can adjust this value based on your needs and preferences.
- - g:chat_gpt_model: This option allows you to specify the ChatGPT model you'd like to use. By default, it is set to 'gpt-4o' with a token limit of 4097, If you prefer to use a different model, such as {"gpt-3.5-turbo-16k": 16385, "gpt-4": 8192, "gpt-4-32k": 32768}, simply change the value to the desired model name. Note that using a different model may affect the quality of the results and API usage costs.
- - g:chat_gpt_session_mode: The customization allows you to maintain a persistent session with GPT, enabling a more interactive and coherent conversation with the AI model. By default, it is set to 1 which is on,
- - g:chat_gpt_temperature: Controls the randomness of the AI's responses. A higher temperature value (close to 1.0) will be more random, lower 0.1 will be less random,
- - g:chat_gpt_lang: Answer in certain langusage, such as Chinese,
- - g:chat_gpt_split_direction: Controls how to open splits, 'vertical' or 'horizontal'. Plugin opens horizontal splits by default.
-By customizing these options, you can tailor the ChatGPT Vim Plugin to better suit your specific needs and preferences.
- - g:split_ratio: Control the split window size. If set 4, the window size will be 1/4.
+**Option Details:**
+
+ - **g:chat_gpt_provider**: Select which AI provider to use. Options: `'openai'`, `'anthropic'`, `'google'`, `'ollama'`, `'openrouter'`. Default: `'openai'`
+ - **g:chat_gpt_max_tokens**: Maximum number of tokens in the AI response. Default: 2000
+ - **g:chat_gpt_model**: Model name for OpenAI (e.g., `'gpt-4o'`, `'gpt-3.5-turbo'`, `'o1'`). Note: When using other providers, use their respective model variables instead.
+ - **g:chat_gpt_session_mode**: Maintain persistent conversation history. Default: 1 (on)
+ - **g:chat_gpt_temperature**: Controls response randomness (0.0-1.0). Higher = more creative, lower = more focused. Default: 0.7
+ - **g:chat_gpt_lang**: Request responses in a specific language (e.g., `'Chinese'`, `'Spanish'`)
+ - **g:chat_gpt_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'horizontal'`
+ - **g:split_ratio**: Split window size ratio. If set to 4, the window will be 1/4 of the screen. Default: 3
 
 ## Usage
 
@@ -146,12 +233,26 @@ vmap <silent> <leader>0 <Plug>(chatgpt-menu)
 1) Type `:Explain`, `:Review`, or `:Rewrite`, `:Fix`, `:Test` and press Enter.
 
 ## Notes
-This plugin is not affiliated with or endorsed by OpenAI. You are responsible for managing your API usage and any associated costs when using this plugin.
+This plugin is not affiliated with or endorsed by OpenAI, Anthropic, Google, or any other AI provider. You are responsible for managing your API usage and any associated costs when using this plugin.
+
+## Migration from OpenAI SDK
+
+**Previous versions** required the `openai` Python package. The plugin now uses HTTP requests for all providers, requiring only the `requests` library.
+
+If you're upgrading from an older version:
+1. Uninstall the old dependency (optional): `pip uninstall openai`
+2. Install the new dependency: `pip install requests`
+3. Your existing OpenAI configuration will continue to work without changes!
 
 # Keywords
 - Vim plugin
-- Chat GPT
+- AI assistance
 - ChatGPT
+- Claude
+- Anthropic
+- Google Gemini
+- Ollama
+- OpenRouter
 - Code assistance
 - Programming help
 - Code explanations
@@ -161,7 +262,9 @@ This plugin is not affiliated with or endorsed by OpenAI. You are responsible fo
 - Test generation
 - Code fixes
 - Commit messages
-- OpenAI
-- ChatGPT API
-- Python module
+- OpenAI API
+- Anthropic API
+- Multi-provider
+- LLM integration
+- Python requests
 - Vim integration
