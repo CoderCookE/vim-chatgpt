@@ -164,20 +164,30 @@ The plugin includes a powerful tools framework that allows AI agents to interact
 
 ### Available Tools
 
+**Read-Only Tools:**
 - **find_in_file**: Search for text patterns in a specific file using grep
 - **find_file_in_project**: Find files by name pattern in the current project
-- **read_file**: Read the contents of a file
+- **read_file**: Read the contents of a file (up to specified line limit)
+
+**File Modification Tools:**
+- **create_file**: Create a new file with specified content
+- **open_file**: Open a file in the current Vim buffer (supports splits)
+- **edit_file**: Edit an existing file by replacing specific content
 
 ### How It Works
 
-When you ask the AI a question that requires information from your codebase, it can automatically:
-1. Search for relevant files
-2. Read file contents
-3. Find specific patterns in code
-4. Use that information to provide accurate answers
+When you ask the AI a question or give it a task, it can automatically:
+1. **Search for relevant files** using `find_file_in_project`
+2. **Read file contents** using `read_file`
+3. **Find specific patterns** in code using `find_in_file`
+4. **Create new files** using `create_file`
+5. **Open files in Vim** using `open_file`
+6. **Edit existing files** using `edit_file`
+7. Use that information to provide accurate answers or complete tasks
 
 ### Example Usage
 
+**Finding Information:**
 ```vim
 :Ask "Where is the user authentication logic implemented?"
 ```
@@ -187,6 +197,28 @@ The AI might:
 2. Use `read_file` to examine relevant files
 3. Use `find_in_file` to search for specific functions
 4. Provide an answer based on the actual code
+
+**Creating Files:**
+```vim
+:Ask "Create a new test file for the authentication module"
+```
+
+The AI might:
+1. Use `find_file_in_project` to locate the authentication module
+2. Use `read_file` to understand the code structure
+3. Use `create_file` to create a new test file with appropriate test cases
+4. Use `open_file` to open the new test file in Vim
+
+**Editing Files:**
+```vim
+:Ask "Add error handling to the login function in auth.py"
+```
+
+The AI might:
+1. Use `find_file_in_project` to locate `auth.py`
+2. Use `read_file` to read the current implementation
+3. Use `edit_file` to add try/catch blocks and error handling
+4. Confirm the changes were made successfully
 
 ### Supported Providers
 

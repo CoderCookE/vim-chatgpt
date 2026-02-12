@@ -251,6 +251,71 @@ def get_tool_definitions():
                 },
                 "required": ["file_path"]
             }
+        },
+        {
+            "name": "create_file",
+            "description": "Create a new file with specified content. Returns success message or error.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the new file should be created (absolute or relative to current directory)"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content to write to the new file"
+                    },
+                    "overwrite": {
+                        "type": "boolean",
+                        "description": "Whether to overwrite if file already exists (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["file_path", "content"]
+            }
+        },
+        {
+            "name": "open_file",
+            "description": "Open a file in the current Vim buffer. The file will be displayed in the editor.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to open in Vim (absolute or relative to current directory)"
+                    },
+                    "split": {
+                        "type": "string",
+                        "description": "How to open the file: 'current' (default), 'horizontal', or 'vertical'",
+                        "enum": ["current", "horizontal", "vertical"],
+                        "default": "current"
+                    }
+                },
+                "required": ["file_path"]
+            }
+        },
+        {
+            "name": "edit_file",
+            "description": "Edit an existing file by replacing specific content. Use this to make precise changes to files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to edit (absolute or relative to current directory)"
+                    },
+                    "old_content": {
+                        "type": "string",
+                        "description": "The exact content to find and replace. Must match exactly including whitespace."
+                    },
+                    "new_content": {
+                        "type": "string",
+                        "description": "The new content to replace the old content with"
+                    }
+                },
+                "required": ["file_path", "old_content", "new_content"]
+            }
         }
     ]
 
@@ -320,6 +385,91 @@ def execute_tool(tool_name, arguments):
                 return f"Permission denied reading file: {file_path}"
             except Exception as e:
                 return f"Error reading file: {str(e)}"
+
+        elif tool_name == "create_file":
+            file_path = arguments.get("file_path")
+            content = arguments.get("content", "")
+            overwrite = arguments.get("overwrite", False)
+
+            try:
+                # Check if file exists
+                if os.path.exists(file_path) and not overwrite:
+                    return f"File already exists: {file_path}. Set overwrite=true to replace it."
+
+                # Create directory if it doesn't exist
+                directory = os.path.dirname(file_path)
+                if directory and not os.path.exists(directory):
+                    os.makedirs(directory)
+
+                # Write the file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+
+                return f"Successfully created file: {file_path} ({len(content)} characters)"
+            except PermissionError:
+                return f"Permission denied creating file: {file_path}"
+            except Exception as e:
+                return f"Error creating file: {str(e)}"
+
+        elif tool_name == "open_file":
+            file_path = arguments.get("file_path")
+            split = arguments.get("split", "current")
+
+            try:
+                # Check if file exists
+                if not os.path.exists(file_path):
+                    return f"File not found: {file_path}"
+
+                # Build Vim command to open the file
+                if split == "horizontal":
+                    vim_cmd = f"split {file_path}"
+                elif split == "vertical":
+                    vim_cmd = f"vsplit {file_path}"
+                else:  # current
+                    vim_cmd = f"edit {file_path}"
+
+                # Execute the Vim command
+                vim.command(vim_cmd)
+
+                return f"Opened file in Vim: {file_path} (split={split})"
+            except vim.error as e:
+                return f"Vim error opening file: {str(e)}"
+            except Exception as e:
+                return f"Error opening file: {str(e)}"
+
+        elif tool_name == "edit_file":
+            file_path = arguments.get("file_path")
+            old_content = arguments.get("old_content")
+            new_content = arguments.get("new_content")
+
+            try:
+                # Read the file
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                # Check if old_content exists in the file
+                if old_content not in content:
+                    return f"Content not found in {file_path}. The exact content must match including whitespace."
+
+                # Count occurrences
+                count = content.count(old_content)
+                if count > 1:
+                    return f"Found {count} occurrences of the content in {file_path}. Please provide more specific content to replace (include more surrounding context)."
+
+                # Replace the content
+                new_file_content = content.replace(old_content, new_content, 1)
+
+                # Write back to the file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_file_content)
+
+                return f"Successfully edited {file_path}: replaced {len(old_content)} characters with {len(new_content)} characters"
+            except FileNotFoundError:
+                return f"File not found: {file_path}"
+            except PermissionError:
+                return f"Permission denied editing file: {file_path}"
+            except Exception as e:
+                return f"Error editing file: {str(e)}"
 
         else:
             return f"Unknown tool: {tool_name}"
@@ -818,7 +968,7 @@ class OpenRouterProvider(BaseProvider):
         headers = {
             'Authorization': f'Bearer {self.config["api_key"]}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://github.com/CoderCookE/vim-chatgpt',
+            'HTTP-Referer': 'https://github.com/CoderCookE/vim-gpt',
         }
 
         payload = {
