@@ -1777,20 +1777,20 @@ def chat_gpt(prompt):
       if needs_approval:
         # Show a separator and the plan
         plan_type = "REVISED PLAN" if is_revised_plan else "INITIAL PLAN"
-        plan_display = "\\n\\n" + "="*60 + "\\n"
-        plan_display += f"{plan_type} FOR APPROVAL:\\n"
-        plan_display += "="*60 + "\\n"
+        plan_display = "\n\n" + "="*60 + "\n"
+        plan_display += f"{plan_type} FOR APPROVAL:\n"
+        plan_display += "="*60 + "\n"
 
         if accumulated_content.strip():
           # Show the plan that was just presented
           plan_display += accumulated_content.strip()
         else:
           # If no plan was provided, list the tools that will be called
-          plan_display += "AI wants to use the following tools:\\n"
+          plan_display += "AI wants to use the following tools:\n"
           for i, tc in enumerate(tool_calls_to_process, 1):
-            plan_display += f"{i}. {tc['name']}\\n"
+            plan_display += f"{i}. {tc['name']}\n"
 
-        plan_display += "\\n" + "="*60 + "\\n\\n"
+        plan_display += "\n" + "="*60 + "\n\n"
 
         if not suppress_display:
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
@@ -1801,20 +1801,20 @@ def chat_gpt(prompt):
 
         if approval.lower() not in ['y', 'yes']:
           if not suppress_display:
-            vim.command("call DisplayChatGPTResponse('\\n\\n[Plan cancelled by user]\\n', '', '{0}')".format(chunk_session_id))
+            vim.command("call DisplayChatGPTResponse('\n\n[Plan cancelled by user]\n', '', '{0}')".format(chunk_session_id))
             vim.command("redraw")
           break
 
         plan_approved = True
         if not suppress_display:
           approval_msg = "[Revised plan approved. Continuing...]" if is_revised_plan else "[Plan approved. Executing...]"
-          vim.command("call DisplayChatGPTResponse('\\n\\n{0}\\n', '', '{1}')".format(approval_msg, chunk_session_id))
+          vim.command("call DisplayChatGPTResponse('\n\n{0}\n', '', '{1}')".format(approval_msg, chunk_session_id))
           vim.command("redraw")
 
       # Execute tools and add results to messages
       tool_iteration += 1
       if not suppress_display:
-        vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools... (iteration {0})]\\n', '', '{1}')".format(tool_iteration, chunk_session_id))
+        vim.command("call DisplayChatGPTResponse('\n\n[Using tools... (iteration {0})]\n', '', '{1}')".format(tool_iteration, chunk_session_id))
         vim.command("redraw")
 
       # For Anthropic, we need to add the assistant message with ALL tool_use blocks first
@@ -1850,7 +1850,7 @@ def chat_gpt(prompt):
 
         # Display tool usage in session
         if not suppress_display:
-          tool_display = f"\\n[Tool: {tool_name}({json.dumps(tool_args)})]\\n{tool_result}\\n"
+          tool_display = f"\n[Tool: {tool_name}({json.dumps(tool_args)})]:\n{tool_result}\n"
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
 
