@@ -35,6 +35,11 @@ if !exists("g:chat_persona")
   let g:chat_persona = 'default'
 endif
 
+" Enable tools/function calling (default: enabled for supported providers)
+if !exists("g:chat_gpt_enable_tools")
+  let g:chat_gpt_enable_tools = 1
+endif
+
 " Provider selection (default to openai for backward compatibility)
 if !exists("g:chat_gpt_provider")
   let g:chat_gpt_provider = 'openai'
@@ -181,6 +186,150 @@ def safe_vim_eval(expression):
     except vim.error:
         return None
 
+
+# Tools framework for function calling
+def get_tool_definitions():
+    """Define available tools for AI agents"""
+    return [
+        {
+            "name": "find_in_file",
+            "description": "Search for text pattern in a specific file using grep. Returns matching lines with line numbers.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to search in (absolute or relative to current directory)"
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Text pattern or regex to search for"
+                    },
+                    "case_sensitive": {
+                        "type": "boolean",
+                        "description": "Whether the search should be case sensitive (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["file_path", "pattern"]
+            }
+        },
+        {
+            "name": "find_file_in_project",
+            "description": "Find files in the current project/directory by name pattern. Returns list of matching file paths.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "File name pattern to search for (supports wildcards like *.py, *test*, etc.)"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["pattern"]
+            }
+        },
+        {
+            "name": "read_file",
+            "description": "Read the contents of a file. Returns the file contents as text.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to read (absolute or relative to current directory)"
+                    },
+                    "max_lines": {
+                        "type": "integer",
+                        "description": "Maximum number of lines to read (default: 100)",
+                        "default": 100
+                    }
+                },
+                "required": ["file_path"]
+            }
+        }
+    ]
+
+
+def execute_tool(tool_name, arguments):
+    """Execute a tool with given arguments"""
+    import subprocess
+    import glob as glob_module
+
+    try:
+        if tool_name == "find_in_file":
+            file_path = arguments.get("file_path")
+            pattern = arguments.get("pattern")
+            case_sensitive = arguments.get("case_sensitive", False)
+
+            # Build grep command
+            cmd = ["grep", "-n"]
+            if not case_sensitive:
+                cmd.append("-i")
+            cmd.extend([pattern, file_path])
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            elif result.returncode == 1:
+                return f"No matches found for '{pattern}' in {file_path}"
+            else:
+                return f"Error searching file: {result.stderr.strip()}"
+
+        elif tool_name == "find_file_in_project":
+            pattern = arguments.get("pattern")
+            max_results = arguments.get("max_results", 20)
+
+            # Get current working directory
+            cwd = os.getcwd()
+
+            # Use find command to search for files
+            cmd = ["find", ".", "-name", pattern, "-type", "f"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, cwd=cwd)
+
+            if result.returncode == 0:
+                files = result.stdout.strip().split('\n')
+                files = [f for f in files if f]  # Remove empty strings
+                if len(files) > max_results:
+                    files = files[:max_results]
+                    return '\n'.join(files) + f'\n... ({len(files)} results shown, more available)'
+                return '\n'.join(files) if files else f"No files found matching pattern: {pattern}"
+            else:
+                return f"Error finding files: {result.stderr.strip()}"
+
+        elif tool_name == "read_file":
+            file_path = arguments.get("file_path")
+            max_lines = arguments.get("max_lines", 100)
+
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = []
+                    for i, line in enumerate(f):
+                        if i >= max_lines:
+                            lines.append(f"... (truncated at {max_lines} lines)")
+                            break
+                        lines.append(line.rstrip())
+                    return '\n'.join(lines)
+            except FileNotFoundError:
+                return f"File not found: {file_path}"
+            except PermissionError:
+                return f"Permission denied reading file: {file_path}"
+            except Exception as e:
+                return f"Error reading file: {str(e)}"
+
+        else:
+            return f"Unknown tool: {tool_name}"
+
+    except subprocess.TimeoutExpired:
+        return f"Tool execution timed out: {tool_name}"
+    except Exception as e:
+        return f"Error executing tool {tool_name}: {str(e)}"
+
+
 # Provider abstraction layer for multi-provider support
 class BaseProvider:
     """Base interface for all LLM providers"""
@@ -204,9 +353,18 @@ class BaseProvider:
     def stream_chat(self, messages, model, temperature, max_tokens):
         """
         Stream chat completion chunks
-        Yields: (content_delta, finish_reason)
+        Yields: (content_delta, finish_reason, tool_calls)
+        tool_calls format: [{"id": "...", "name": "...", "arguments": {...}}] or None
         """
         raise NotImplementedError("Subclasses must implement stream_chat()")
+
+    def supports_tools(self):
+        """Whether this provider supports function/tool calling"""
+        return False
+
+    def format_tools_for_api(self, tools):
+        """Format tool definitions for this provider's API"""
+        return tools
 
 
 class OpenAIProvider(BaseProvider):
@@ -237,7 +395,25 @@ class OpenAIProvider(BaseProvider):
         messages.append({"role": "user", "content": user_message})
         return messages
 
-    def stream_chat(self, messages, model, temperature, max_tokens):
+    def supports_tools(self):
+        """OpenAI supports function calling"""
+        return True
+
+    def format_tools_for_api(self, tools):
+        """Format tools for OpenAI API"""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "parameters": tool["parameters"]
+                }
+            }
+            for tool in tools
+        ]
+
+    def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """Stream chat completion from OpenAI via HTTP"""
         # Determine if using Azure or standard OpenAI
         api_type = self.config.get('api_type')
@@ -271,6 +447,11 @@ class OpenAIProvider(BaseProvider):
             'stream': True
         }
 
+        # Add tools if provided
+        if tools:
+            payload['tools'] = self.format_tools_for_api(tools)
+            payload['tool_choice'] = 'auto'
+
         # Handle different model parameter requirements
         if model.startswith('gpt-'):
             payload['temperature'] = temperature
@@ -282,6 +463,8 @@ class OpenAIProvider(BaseProvider):
         response = requests.post(url, headers=headers, json=payload, stream=True)
 
         # Parse Server-Sent Events stream
+        tool_calls_accumulator = {}  # Accumulate tool call chunks by index
+
         for line in response.iter_lines():
             if not line:
                 continue
@@ -298,13 +481,49 @@ class OpenAIProvider(BaseProvider):
                 chunk = json.loads(data)
                 if 'choices' in chunk and chunk['choices']:
                     choice = chunk['choices'][0]
-                    content = choice.get('delta', {}).get('content', '')
+                    delta = choice.get('delta', {})
+                    content = delta.get('content', '')
                     finish_reason = choice.get('finish_reason', '')
 
+                    # Handle tool calls (streamed in chunks)
+                    if 'tool_calls' in delta:
+                        for tool_call_chunk in delta['tool_calls']:
+                            idx = tool_call_chunk.get('index', 0)
+                            if idx not in tool_calls_accumulator:
+                                tool_calls_accumulator[idx] = {
+                                    'id': '',
+                                    'name': '',
+                                    'arguments': ''
+                                }
+
+                            if 'id' in tool_call_chunk:
+                                tool_calls_accumulator[idx]['id'] = tool_call_chunk['id']
+                            if 'function' in tool_call_chunk:
+                                func = tool_call_chunk['function']
+                                if 'name' in func:
+                                    tool_calls_accumulator[idx]['name'] = func['name']
+                                if 'arguments' in func:
+                                    tool_calls_accumulator[idx]['arguments'] += func['arguments']
+
+                    # Yield content if present
                     if content:
-                        yield (content, '')
+                        yield (content, '', None)
+
+                    # On finish, yield tool calls if any
                     if finish_reason:
-                        yield ('', finish_reason)
+                        tool_calls = None
+                        if tool_calls_accumulator:
+                            tool_calls = []
+                            for tool_data in tool_calls_accumulator.values():
+                                try:
+                                    tool_calls.append({
+                                        'id': tool_data['id'],
+                                        'name': tool_data['name'],
+                                        'arguments': json.loads(tool_data['arguments'])
+                                    })
+                                except json.JSONDecodeError:
+                                    pass  # Skip malformed tool calls
+                        yield ('', finish_reason, tool_calls)
             except json.JSONDecodeError:
                 continue
 
@@ -335,7 +554,22 @@ class AnthropicProvider(BaseProvider):
             'messages': messages
         }
 
-    def stream_chat(self, messages, model, temperature, max_tokens):
+    def supports_tools(self):
+        """Anthropic supports tool use"""
+        return True
+
+    def format_tools_for_api(self, tools):
+        """Format tools for Anthropic API"""
+        return [
+            {
+                "name": tool["name"],
+                "description": tool["description"],
+                "input_schema": tool["parameters"]
+            }
+            for tool in tools
+        ]
+
+    def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """Stream chat completion from Anthropic"""
         headers = {
             'x-api-key': self.config['api_key'],
@@ -352,6 +586,10 @@ class AnthropicProvider(BaseProvider):
             'stream': True
         }
 
+        # Add tools if provided
+        if tools:
+            payload['tools'] = self.format_tools_for_api(tools)
+
         response = requests.post(
             'https://api.anthropic.com/v1/messages',
             headers=headers,
@@ -360,6 +598,8 @@ class AnthropicProvider(BaseProvider):
         )
 
         # Parse Server-Sent Events stream
+        tool_use_blocks = {}  # Accumulate tool use blocks
+
         for line in response.iter_lines():
             if not line:
                 continue
@@ -374,14 +614,51 @@ class AnthropicProvider(BaseProvider):
 
             try:
                 chunk = json.loads(data)
-                if chunk.get('type') == 'content_block_delta':
-                    content = chunk.get('delta', {}).get('text', '')
-                    if content:
-                        yield (content, '')
-                elif chunk.get('type') == 'message_delta':
+                chunk_type = chunk.get('type')
+
+                # Handle text content
+                if chunk_type == 'content_block_delta':
+                    delta = chunk.get('delta', {})
+                    if delta.get('type') == 'text_delta':
+                        content = delta.get('text', '')
+                        if content:
+                            yield (content, '', None)
+                    elif delta.get('type') == 'input_json_delta':
+                        # Accumulate tool use input
+                        idx = chunk.get('index', 0)
+                        if idx not in tool_use_blocks:
+                            tool_use_blocks[idx] = {'id': '', 'name': '', 'input': ''}
+                        tool_use_blocks[idx]['input'] += delta.get('partial_json', '')
+
+                # Handle tool use block start
+                elif chunk_type == 'content_block_start':
+                    block = chunk.get('content_block', {})
+                    if block.get('type') == 'tool_use':
+                        idx = chunk.get('index', 0)
+                        tool_use_blocks[idx] = {
+                            'id': block.get('id', ''),
+                            'name': block.get('name', ''),
+                            'input': ''
+                        }
+
+                # Handle message end
+                elif chunk_type == 'message_delta':
                     finish_reason = chunk.get('delta', {}).get('stop_reason', '')
                     if finish_reason:
-                        yield ('', 'stop')
+                        # Convert accumulated tool blocks to tool_calls
+                        tool_calls = None
+                        if tool_use_blocks:
+                            tool_calls = []
+                            for tool_data in tool_use_blocks.values():
+                                try:
+                                    tool_calls.append({
+                                        'id': tool_data['id'],
+                                        'name': tool_data['name'],
+                                        'arguments': json.loads(tool_data['input'])
+                                    })
+                                except json.JSONDecodeError:
+                                    pass  # Skip malformed tool calls
+                        yield ('', 'stop', tool_calls)
             except json.JSONDecodeError:
                 continue
 
@@ -451,12 +728,12 @@ class GoogleProvider(BaseProvider):
                         for part in candidate['content']['parts']:
                             text = part.get('text', '')
                             if text:
-                                yield (text, '')
+                                yield (text, '', None)
                     finish_reason = candidate.get('finishReason', '')
                     if finish_reason and finish_reason != 'STOP':
-                        yield ('', finish_reason)
+                        yield ('', finish_reason, None)
                     elif finish_reason == 'STOP':
-                        yield ('', 'stop')
+                        yield ('', 'stop', None)
             except json.JSONDecodeError:
                 continue
 
@@ -506,9 +783,9 @@ class OllamaProvider(BaseProvider):
                 done = chunk.get('done', False)
 
                 if content:
-                    yield (content, '')
+                    yield (content, '', None)
                 if done:
-                    yield ('', 'stop')
+                    yield ('', 'stop', None)
             except json.JSONDecodeError:
                 continue
 
@@ -575,9 +852,9 @@ class OpenRouterProvider(BaseProvider):
                     finish_reason = choice.get('finish_reason', '')
 
                     if content:
-                        yield (content, '')
+                        yield (content, '', None)
                     if finish_reason:
-                        yield ('', finish_reason)
+                        yield ('', finish_reason, None)
             except json.JSONDecodeError:
                 continue
 
@@ -715,18 +992,94 @@ def chat_gpt(prompt):
     print(f"Error creating messages: {str(e)}")
     return
 
-  # Stream response using provider
+  # Get tools if enabled and provider supports them
+  tools = None
+  enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
+  if enable_tools and provider.supports_tools():
+    tools = get_tool_definitions()
+
+  # Stream response using provider (with tool calling loop)
   try:
     chunk_session_id = session_id if session_id else 'gpt-response'
+    max_tool_iterations = 5  # Prevent infinite loops
+    tool_iteration = 0
 
-    for content, finish_reason in provider.stream_chat(messages, model, temperature, max_tokens):
-      # Call DisplayChatGPTResponse with the finish_reason or content
-      if finish_reason:
-        vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
-      elif content:
-        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
+    while tool_iteration < max_tool_iterations:
+      tool_calls_to_process = None
 
+      for content, finish_reason, tool_calls in provider.stream_chat(messages, model, temperature, max_tokens, tools):
+        # Display content as it streams
+        if content:
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), chunk_session_id))
+          vim.command("redraw")
+
+        # Handle finish
+        if finish_reason:
+          if tool_calls:
+            tool_calls_to_process = tool_calls
+          else:
+            vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
+            vim.command("redraw")
+
+      # If no tool calls, we're done
+      if not tool_calls_to_process:
+        break
+
+      # Execute tools and add results to messages
+      tool_iteration += 1
+      vim.command("call DisplayChatGPTResponse('\\n\\n[Using tools...]\\n', '', '{0}')".format(chunk_session_id))
       vim.command("redraw")
+
+      for tool_call in tool_calls_to_process:
+        tool_name = tool_call['name']
+        tool_args = tool_call['arguments']
+        tool_id = tool_call.get('id', 'unknown')
+
+        # Execute the tool
+        tool_result = execute_tool(tool_name, tool_args)
+
+        # Display tool usage in session
+        tool_display = f"\\n[Tool: {tool_name}({json.dumps(tool_args)})]\\n{tool_result}\\n"
+        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
+        vim.command("redraw")
+
+        # Add tool call and result to messages for next iteration
+        # Format depends on provider
+        if provider_name == 'openai':
+          # OpenAI format
+          if isinstance(messages, list):
+            # Add assistant message with tool calls
+            messages.append({
+              "role": "assistant",
+              "content": None,
+              "tool_calls": [{
+                "id": tool_id,
+                "type": "function",
+                "function": {
+                  "name": tool_name,
+                  "arguments": json.dumps(tool_args)
+                }
+              }]
+            })
+            # Add tool response
+            messages.append({
+              "role": "tool",
+              "tool_call_id": tool_id,
+              "content": tool_result
+            })
+        elif provider_name == 'anthropic':
+          # Anthropic format
+          if isinstance(messages, dict) and 'messages' in messages:
+            # Add user message with tool result
+            messages['messages'].append({
+              "role": "user",
+              "content": [{
+                "type": "tool_result",
+                "tool_use_id": tool_id,
+                "content": tool_result
+              }]
+            })
+
   except Exception as e:
     print(f"Error streaming from {provider_name}: {str(e)}")
 

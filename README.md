@@ -143,6 +143,7 @@ let g:chat_gpt_temperature = 0.7
 let g:chat_gpt_lang = 'Chinese'
 let g:chat_gpt_split_direction = 'vertical'
 let g:split_ratio=4
+let g:chat_gpt_enable_tools=1
 ```
 
 **Option Details:**
@@ -155,10 +156,54 @@ let g:split_ratio=4
  - **g:chat_gpt_lang**: Request responses in a specific language (e.g., `'Chinese'`, `'Spanish'`)
  - **g:chat_gpt_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'horizontal'`
  - **g:split_ratio**: Split window size ratio. If set to 4, the window will be 1/4 of the screen. Default: 3
+ - **g:chat_gpt_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
+
+## AI Tools & Function Calling
+
+The plugin includes a powerful tools framework that allows AI agents to interact with your codebase. When enabled, the AI can autonomously use tools to search files, read code, and find information to better answer your questions.
+
+### Available Tools
+
+- **find_in_file**: Search for text patterns in a specific file using grep
+- **find_file_in_project**: Find files by name pattern in the current project
+- **read_file**: Read the contents of a file
+
+### How It Works
+
+When you ask the AI a question that requires information from your codebase, it can automatically:
+1. Search for relevant files
+2. Read file contents
+3. Find specific patterns in code
+4. Use that information to provide accurate answers
+
+### Example Usage
+
+```vim
+:Ask "Where is the user authentication logic implemented?"
+```
+
+The AI might:
+1. Use `find_file_in_project` to locate files matching `*auth*`
+2. Use `read_file` to examine relevant files
+3. Use `find_in_file` to search for specific functions
+4. Provide an answer based on the actual code
+
+### Supported Providers
+
+Tools are currently supported by:
+- **OpenAI** (GPT-4, GPT-4o, etc.)
+- **Anthropic** (Claude Sonnet, Claude Opus)
+
+### Disabling Tools
+
+If you prefer the AI to not access your files, disable tools:
+```vim
+let g:chat_gpt_enable_tools = 0
+```
 
 ## Usage
 
-The plugin provides several commands to interact with ChatGPT:
+The plugin provides several commands to interact with AI:
 
 - `Ask`: Ask a question
 - `Rewrite`: Ask the model to rewrite a code snippet more idiomatically
