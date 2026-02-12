@@ -1060,7 +1060,7 @@ class OpenAIProvider(BaseProvider):
             # O-series models use different parameters
             payload['max_completion_tokens'] = max_tokens
 
-        response = requests.post(url, headers=headers, json=payload, stream=True)
+        response = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
 
         # Check for HTTP errors
         if response.status_code != 200:
@@ -1206,7 +1206,8 @@ class AnthropicProvider(BaseProvider):
             url,
             headers=headers,
             json=payload,
-            stream=True
+            stream=True,
+            timeout=60
         )
 
         # Check for HTTP errors
@@ -1331,7 +1332,7 @@ class GoogleProvider(BaseProvider):
             }
         }
 
-        response = requests.post(url, json=payload, stream=True)
+        response = requests.post(url, json=payload, stream=True, timeout=60)
 
         # Check for HTTP errors
         if response.status_code != 200:
@@ -1422,7 +1423,7 @@ class OllamaProvider(BaseProvider):
             }
         }
 
-        response = requests.post(url, json=payload, stream=True)
+        response = requests.post(url, json=payload, stream=True, timeout=60)
 
         # Check for HTTP errors
         if response.status_code != 200:
@@ -1485,7 +1486,7 @@ class OpenRouterProvider(BaseProvider):
             'stream': True
         }
 
-        response = requests.post(url, headers=headers, json=payload, stream=True)
+        response = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
 
         # Check for HTTP errors
         if response.status_code != 200:
