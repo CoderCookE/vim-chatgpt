@@ -85,8 +85,8 @@ function! s:check_and_generate_context()
 endfunction
 
 " Function to extract cutoff byte position from summary metadata
-function! s:get_summary_cutoff()
-    let summary_file = getcwd() . '/.vim-chatgpt/summary.md'
+function! s:get_summary_cutoff(project_dir)
+    let summary_file = a:project_dir . '/.vim-chatgpt/summary.md'
 
     if !filereadable(summary_file)
         return 0
@@ -140,7 +140,7 @@ function! s:check_and_update_summary()
 
     " Get history file size
     let file_size = getfsize(history_file)
-    let cutoff_byte = s:get_summary_cutoff()
+    let cutoff_byte = s:get_summary_cutoff(project_dir)
     let compaction_size = g:chat_gpt_summary_compaction_size
     let new_content_size = file_size - cutoff_byte
 
@@ -613,6 +613,140 @@ def get_tool_definitions():
                 },
                 "required": ["file_path", "start_line", "end_line", "new_content"]
             }
+        },
+        {
+            "name": "git_status",
+            "description": "Get the current git repository status. Shows working tree status including staged, unstaged, and untracked files.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "git_diff",
+            "description": "Show changes in the working directory or staging area. Use this to see what has been modified.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "staged": {
+                        "type": "boolean",
+                        "description": "If true, show staged changes (git diff --cached). If false, show unstaged changes (git diff). Default: false",
+                        "default": False
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Optional: specific file path to diff. If not provided, shows all changes."
+                    }
+                },
+                "required": []
+            }
+        },
+        {
+            "name": "git_log",
+            "description": "Show commit history. Useful for understanding recent changes and commit patterns.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_count": {
+                        "type": "integer",
+                        "description": "Maximum number of commits to show (default: 10)",
+                        "default": 10
+                    },
+                    "oneline": {
+                        "type": "boolean",
+                        "description": "If true, show compact one-line format. If false, show detailed format (default: true)",
+                        "default": True
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Optional: show history for specific file path"
+                    }
+                },
+                "required": []
+            }
+        },
+        {
+            "name": "git_show",
+            "description": "Show details of a specific commit including the full diff.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "commit": {
+                        "type": "string",
+                        "description": "Commit hash, branch name, or reference (e.g., 'HEAD', 'HEAD~1', 'abc123')"
+                    }
+                },
+                "required": ["commit"]
+            }
+        },
+        {
+            "name": "git_branch",
+            "description": "List branches or get current branch information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_all": {
+                        "type": "boolean",
+                        "description": "If true, list all branches. If false, show only current branch (default: false)",
+                        "default": False
+                    }
+                },
+                "required": []
+            }
+        },
+        {
+            "name": "git_add",
+            "description": "Stage files for commit. Use this to add files to the staging area.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of file paths to stage. Use ['.'] to stage all changes."
+                    }
+                },
+                "required": ["files"]
+            }
+        },
+        {
+            "name": "git_reset",
+            "description": "Unstage files from the staging area (does not modify working directory). Safe operation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of file paths to unstage. If empty, unstages all files."
+                    }
+                },
+                "required": []
+            }
+        },
+        {
+            "name": "git_commit",
+            "description": "Create a new commit with staged changes. Only works if there are staged changes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Commit message. Should be descriptive and follow conventional commit format if possible."
+                    },
+                    "amend": {
+                        "type": "boolean",
+                        "description": "If true, amend the previous commit instead of creating a new one (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["message"]
+            }
+
+                },
+                "required": ["command"]
+            }
         }
     ]
 
@@ -921,7 +1055,210 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
             except Exception as e:
                 return f"Error editing file by lines: {str(e)}"
 
-        else:
+        # Git-specific tools
+        elif tool_name == "git_status":
+            try:
+                result = subprocess.run(
+                    ["git", "status"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=os.getcwd()
+                )
+                if result.returncode == 0:
+                    return result.stdout
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git status: {str(e)}"
+
+        elif tool_name == "git_diff":
+            staged = arguments.get("staged", False)
+            file_path = arguments.get("file_path")
+
+            try:
+                cmd = ["git", "diff"]
+                if staged:
+                    cmd.append("--cached")
+                if file_path:
+                    cmd.append(file_path)
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    if result.stdout.strip():
+                        return result.stdout
+                    else:
+                        return "No changes found."
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git diff: {str(e)}"
+
+        elif tool_name == "git_log":
+            max_count = arguments.get("max_count", 10)
+            oneline = arguments.get("oneline", True)
+            file_path = arguments.get("file_path")
+
+            try:
+                cmd = ["git", "log", f"-{max_count}"]
+                if oneline:
+                    cmd.append("--oneline")
+                if file_path:
+                    cmd.append(file_path)
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    return result.stdout if result.stdout.strip() else "No commits found."
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git log: {str(e)}"
+
+        elif tool_name == "git_show":
+            commit = arguments.get("commit")
+
+            try:
+                result = subprocess.run(
+                    ["git", "show", commit],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    return result.stdout
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git show: {str(e)}"
+
+        elif tool_name == "git_branch":
+            list_all = arguments.get("list_all", False)
+
+            try:
+                if list_all:
+                    cmd = ["git", "branch", "-a"]
+                else:
+                    cmd = ["git", "branch", "--show-current"]
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    return result.stdout.strip()
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git branch: {str(e)}"
+
+        elif tool_name == "git_add":
+            files = arguments.get("files", [])
+
+            if not files:
+                return "Error: No files specified to add."
+
+            try:
+                cmd = ["git", "add"] + files
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    files_str = ", ".join(files)
+                    return f"Successfully staged: {files_str}"
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git add: {str(e)}"
+
+        elif tool_name == "git_reset":
+            files = arguments.get("files", [])
+
+            try:
+                if files:
+                    cmd = ["git", "reset", "HEAD"] + files
+                    files_str = ", ".join(files)
+                    success_msg = f"Successfully unstaged: {files_str}"
+                else:
+                    cmd = ["git", "reset", "HEAD"]
+                    success_msg = "Successfully unstaged all files."
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    return success_msg
+                else:
+                    return f"Git error: {result.stderr}"
+            except Exception as e:
+                return f"Error running git reset: {str(e)}"
+
+        elif tool_name == "git_commit":
+            message = arguments.get("message")
+            amend = arguments.get("amend", False)
+
+            if not message and not amend:
+                return "Error: Commit message is required."
+
+            try:
+                cmd = ["git", "commit"]
+                if amend:
+                    cmd.append("--amend")
+                if message:
+                    cmd.extend(["-m", message])
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=os.getcwd()
+                )
+
+                if result.returncode == 0:
+                    return f"Commit successful:\n{result.stdout}"
+                else:
+                    # Check for common errors
+                    stderr = result.stderr
+                    if "nothing to commit" in stderr:
+                        return "Error: No changes staged for commit. Use git_add first."
+                    elif "no changes added to commit" in stderr:
+                        return "Error: No changes staged for commit. Use git_add first."
+                    else:
+                        return f"Git error: {stderr}"
+            except Exception as e:
+                return f"Error running git commit: {str(e)}"
+
+
             return f"Unknown tool: {tool_name}"
 
     except subprocess.TimeoutExpired:
@@ -1977,38 +2314,30 @@ function! SendHighlightedCodeToChatGPT(ask, context) abort
     call setpos('.', save_cursor)
 endfunction
 
-" Function to generate a commit message
-" Function to generate a commit message
+" Function to generate a commit message using git integration
+" Function to generate a commit message using git integration
 function! GenerateCommitMessage()
-  " Save the current position and yank register
-  let save_cursor = getcurpos()
-  let save_reg = @@
-  let save_regtype = getregtype('@')
+  " Create a prompt that instructs the AI to use git tools
+  let prompt = 'Please help me create a git commit message. Use the git tools to:'
+  let prompt .= "\n\n1. Run git_status to see the current state"
+  let prompt .= "\n2. Run git_diff with staged=true to see staged changes (if any)"
+  let prompt .= "\n3. Run git_diff with staged=false to see unstaged changes (if no staged changes)"
+  let prompt .= "\n4. Run git_log with max_count=5 to see recent commit history for context"
+  let prompt .= "\n\nBased on the changes, propose a helpful commit message following conventional commit format:"
+  let prompt .= "\n- Start with a type (feat/fix/docs/style/refactor/test/chore)"
+  let prompt .= "\n- Include a short, descriptive title"
+  let prompt .= "\n- Optionally include a body with more details"
+  let prompt .= "\n\nAfter I approve the commit message, use git_commit to create the commit."
+  let prompt .= "\n\nIf there are no staged changes, ask if I want to stage all changes first using git_add."
 
-  " Yank the entire buffer into the unnamed register
-  normal! ggVGy
-
-  " Send the yanked text to ChatGPT
-  let yanked_text = @@
-  let prompt = 'I have the following code changes, can you write a helpful commit message, including a short title? Only respond with the commit message' . "\n" .  yanked_text
-  let g:chat_gpt_session_mode = 0
-
+  " Call ChatGPT with session mode and plan approval enabled
+  " This allows the AI to use tools and get user approval
   call ChatGPT(prompt)
-
-  " Restore the original yank register and cursor position
-  let @@ = save_reg
-  call setreg('@', save_reg, save_regtype)
-  call setpos('.', save_cursor)
 endfunction
 
+
 " Function to generate project context
-function! GenerateProjectContext()
-  " Create a prompt to generate project context
-  let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:'
-  let prompt .= "\n\n1. Get the working directory"
-  let prompt .= "\n2. List the root directory contents"
-  let prompt .= "\n3. Look for README files, package.json, requirements.txt, Cargo.toml, go.mod, pom.xml, or other project metadata files"
-  let prompt .= "\n4. Read key configuration/metadata files to understand the project"
+
   let prompt .= "\n\nThen write a summary in this format:"
   let prompt .= "\n\n# Project: [Name]"
   let prompt .= "\n\n## Type"
@@ -2047,10 +2376,11 @@ endfunction
 " Function to generate conversation summary
 function! GenerateConversationSummary()
   " Calculate byte positions for compaction
-  let history_file = getcwd() . '/.vim-chatgpt/history.txt'
-  let summary_file = getcwd() . '/.vim-chatgpt/summary.md'
+  let project_dir = getcwd()
+  let history_file = project_dir . '/.vim-chatgpt/history.txt'
+  let summary_file = project_dir . '/.vim-chatgpt/summary.md'
 
-  let old_cutoff = s:get_summary_cutoff()
+  let old_cutoff = s:get_summary_cutoff(project_dir)
   let history_size = getfsize(history_file)
   let recent_window = g:chat_gpt_recent_history_size
   let new_cutoff = max([0, history_size - recent_window])
