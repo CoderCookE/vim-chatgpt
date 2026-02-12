@@ -1984,21 +1984,44 @@ function! GenerateConversationSummary()
   let recent_window = g:chat_gpt_recent_history_size
   let new_cutoff = max([0, history_size - recent_window])
 
-  " Create a prompt to analyze conversation history and generate summary
-  let prompt = 'Please analyze our conversation history and create a comprehensive summary.'
-  let prompt .= "\n\nIMPORTANT: Use the read_file tool to read .vim-chatgpt/history.txt"
-
-  if old_cutoff > 0
-    let prompt .= "\n\nThis is a summary UPDATE (incremental compaction). The current summary covers conversation up to byte " . old_cutoff . "."
-    let prompt .= "\nYou need to read and summarize ONLY the NEW portion from byte " . old_cutoff . " to byte " . new_cutoff . "."
-    let prompt .= "\nFirst use read_file to read the EXISTING summary from .vim-chatgpt/summary.md, then read the NEW content from .vim-chatgpt/history.txt."
-    let prompt .= "\n\nIMPORTANT: Keep the ENTIRE existing summary as-is. Only ADD new insights from the new conversation portion."
-    let prompt .= "\nDo NOT re-summarize old content. Only append new topics, preferences, and action items discovered in the new portion."
-  else
-    let prompt .= "\n\nThis is the FIRST summary. Read .vim-chatgpt/history.txt and summarize everything up to byte " . new_cutoff . "."
+  " Read the old summary if it exists
+  let old_summary = ""
+  if filereadable(summary_file)
+    let old_summary = join(readfile(summary_file), "\n")
   endif
 
-  let prompt .= "\n\nCreate a summary in this format:"
+  " Read the new conversation portion from history
+  let new_conversation = ""
+  if filereadable(history_file)
+    " Read from old_cutoff to new_cutoff
+    let all_history = join(readfile(history_file, 'b'), "\n")
+    let bytes_to_read = new_cutoff - old_cutoff
+    if bytes_to_read > 0
+      let new_conversation = strpart(all_history, old_cutoff, bytes_to_read)
+    else
+      " First summary - read everything up to new_cutoff
+      let new_conversation = strpart(all_history, 0, new_cutoff)
+    endif
+  endif
+
+  " Create a prompt with the actual content
+  let prompt = ""
+
+  if old_cutoff > 0 && !empty(old_summary)
+    let prompt .= "Here is the existing conversation summary:\n\n"
+    let prompt .= "```markdown\n" . old_summary . "\n```\n\n"
+    let prompt .= "And here is the new conversation to add to the summary:\n\n"
+    let prompt .= "```\n" . new_conversation . "\n```\n\n"
+    let prompt .= "Please extend the existing summary with insights from the new conversation.\n"
+    let prompt .= "Keep all the existing content and only ADD new topics, preferences, and action items.\n"
+    let prompt .= "Do NOT re-summarize or remove existing content."
+  else
+    let prompt .= "Here is a conversation history to summarize:\n\n"
+    let prompt .= "```\n" . new_conversation . "\n```\n\n"
+    let prompt .= "Please create a comprehensive summary of this conversation."
+  endif
+
+  let prompt .= "\n\nUse this exact format for the summary:"
   let prompt .= "\n\n<!-- SUMMARY_METADATA"
   let prompt .= "\ncutoff_byte: " . new_cutoff
   let prompt .= "\nlast_updated: " . strftime("%Y-%m-%d")
@@ -2016,8 +2039,8 @@ function! GenerateConversationSummary()
   let prompt .= "\n- Project-specific conventions"
   let prompt .= "\n\n## Action Items"
   let prompt .= "\n[Any pending tasks or future work mentioned]"
-  let prompt .= "\n\nSave this summary to .vim-chatgpt/summary.md (with the metadata header included)."
-  let prompt .= "\n\nImportant: Use create_file tool with overwrite=true to save to .vim-chatgpt/summary.md. INCLUDE THE METADATA COMMENT AT THE TOP."
+  let prompt .= "\n\nSave this summary to .vim-chatgpt/summary.md using the create_file tool with overwrite=true."
+  let prompt .= "\nIMPORTANT: Include the metadata header at the top."
 
   " Use session mode 0 for one-time response, disable plan approval and suppress display
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
