@@ -23,6 +23,8 @@ The plugin requires only the `requests` library:
 pip install requests
 ```
 
+**Important:** Vim must be able to import `requests` from its Python interpreter. If you get a `ModuleNotFoundError: No module named 'requests'` error, see the [Troubleshooting](#troubleshooting) section below.
+
 ### 2. Install the Plugin
 
 Copy the `chatgpt.vim` file to your Vim plugin directory. If you're using [vim-pathogen](https://github.com/tpope/vim-pathogen), add the `chatgpt` directory to your `bundle` directory.
@@ -231,6 +233,62 @@ vmap <silent> <leader>0 <Plug>(chatgpt-menu)
 1) Enter visual mode by pressing V.
 1) Select the lines of code you want to explain, review, or rewrite.
 1) Type `:Explain`, `:Review`, or `:Rewrite`, `:Fix`, `:Test` and press Enter.
+
+## Troubleshooting
+
+### ModuleNotFoundError: No module named 'requests'
+
+If you see this error, it means `requests` is not installed for the Python version that Vim is using. Vim might use a different Python interpreter than your default `python3` command.
+
+**1. Check which Python version Vim uses:**
+```bash
+vim --version | grep python
+```
+
+Look for a line like: `-lpython3.13` or similar. This shows Vim is using Python 3.13.
+
+**2. Install requests for that specific Python version:**
+
+For Python 3.13 (adjust version number as needed):
+```bash
+python3.13 -m pip install requests
+```
+
+**3. If you get an "externally-managed-environment" error:**
+
+On newer macOS/Linux systems, Python prevents global package installation. Use one of these solutions:
+
+```bash
+# Option 1: Use --break-system-packages (simpler, but be aware of the implications)
+python3.13 -m pip install --break-system-packages requests
+
+# Option 2: Use --user flag (installs to user directory)
+python3.13 -m pip install --user requests
+
+# Option 3: Use Homebrew (macOS only, if requests is available)
+brew install python-requests
+```
+
+**4. Verify installation:**
+```bash
+python3.13 -c "import requests; print('✓ Success')"
+```
+
+### Common Issues
+
+**Q: The plugin doesn't respond when I run commands**
+- Check that your API key is set correctly
+- Verify you have internet connection (except for Ollama)
+- Check Vim's error messages with `:messages`
+
+**Q: Vim says "Python 3 support is required"**
+- Your Vim build doesn't include Python 3 support
+- Install a version with Python 3: `brew install vim` (macOS) or compile with `--enable-python3interp`
+
+**Q: How do I know which provider/model I'm using?**
+- Check `:echo g:chat_gpt_provider` in Vim
+- For OpenAI, check `:echo g:chat_gpt_model`
+- For other providers, check `:echo g:anthropic_model`, etc.
 
 ## Notes
 This plugin is not affiliated with or endorsed by OpenAI, Anthropic, Google, or any other AI provider. You are responsible for managing your API usage and any associated costs when using this plugin.
