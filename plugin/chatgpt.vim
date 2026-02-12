@@ -8,7 +8,29 @@ endif
 
 " Function to check if context file exists and auto-generate if not or if old
 function! s:check_and_generate_context()
-    let context_file = getcwd() . '/.vim-chatgpt/context.md'
+    " Use directory of the file being edited, or current directory if no file
+    let current_file = expand('%:p')
+    if empty(current_file) || !filereadable(current_file)
+        " No file being edited, use current working directory
+        let project_dir = getcwd()
+    else
+        " Get directory of the file being edited
+        let project_dir = expand('%:p:h')
+    endif
+
+    let home = expand('~')
+
+    " Skip if we're in home directory, parent of home, or root
+    if project_dir ==# home || project_dir ==# '/' || len(project_dir) <= len(home)
+        return
+    endif
+
+    " Also skip if we're in a common system directory
+    if project_dir =~# '^\(/tmp\|/var\|/etc\|/usr\|/bin\|/sbin\|/opt\)'
+        return
+    endif
+
+    let context_file = project_dir . '/.vim-chatgpt/context.md'
     let should_generate = 0
 
     if !filereadable(context_file)
@@ -28,10 +50,14 @@ function! s:check_and_generate_context()
     endif
 
     if should_generate
-        " Save current settings
+        " Save current settings and directory
+        let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+
+        " Change to project directory for context generation
+        execute 'cd ' . fnameescape(project_dir)
 
         " Disable session mode, plan approval, and suppress display for auto-generation
         let g:chat_gpt_session_mode = 0
@@ -40,10 +66,11 @@ function! s:check_and_generate_context()
 
         call GenerateProjectContext()
 
-        " Restore settings
+        " Restore settings and directory
         let g:chat_gpt_session_mode = save_session_mode
         let g:chat_gpt_require_plan_approval = save_plan_approval
         let g:chat_gpt_suppress_display = save_suppress_display
+        execute 'cd ' . fnameescape(save_cwd)
     endif
 endfunction
 
@@ -71,8 +98,30 @@ endfunction
 
 " Function to check if summary needs updating based on history size
 function! s:check_and_update_summary()
-    let history_file = getcwd() . '/.vim-chatgpt/history.txt'
-    let summary_file = getcwd() . '/.vim-chatgpt/summary.md'
+    " Use directory of the file being edited, or current directory if no file
+    let current_file = expand('%:p')
+    if empty(current_file) || !filereadable(current_file)
+        " No file being edited, use current working directory
+        let project_dir = getcwd()
+    else
+        " Get directory of the file being edited
+        let project_dir = expand('%:p:h')
+    endif
+
+    let home = expand('~')
+
+    " Skip if we're in home directory, parent of home, or root
+    if project_dir ==# home || project_dir ==# '/' || len(project_dir) <= len(home)
+        return
+    endif
+
+    " Also skip if we're in a common system directory
+    if project_dir =~# '^\(/tmp\|/var\|/etc\|/usr\|/bin\|/sbin\|/opt\)'
+        return
+    endif
+
+    let history_file = project_dir . '/.vim-chatgpt/history.txt'
+    let summary_file = project_dir . '/.vim-chatgpt/summary.md'
 
     " Only check if history file exists
     if !filereadable(history_file)
@@ -91,10 +140,14 @@ function! s:check_and_update_summary()
     if new_content_size > compaction_size
         echo "Conversation grew by " . float2nr(new_content_size / 1024) . "KB. Compacting into summary..."
 
-        " Save current settings
+        " Save current settings and directory
+        let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+
+        " Change to project directory for summary generation
+        execute 'cd ' . fnameescape(project_dir)
 
         " Disable session mode, plan approval, and suppress display for auto-generation
         let g:chat_gpt_session_mode = 0
@@ -103,17 +156,22 @@ function! s:check_and_update_summary()
 
         call GenerateConversationSummary()
 
-        " Restore settings
+        " Restore settings and directory
         let g:chat_gpt_session_mode = save_session_mode
         let g:chat_gpt_require_plan_approval = save_plan_approval
         let g:chat_gpt_suppress_display = save_suppress_display
+        execute 'cd ' . fnameescape(save_cwd)
     elseif !filereadable(summary_file) && file_size > 1024
         echo "No conversation summary found. Generating from history..."
 
-        " Save current settings
+        " Save current settings and directory
+        let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+
+        " Change to project directory for summary generation
+        execute 'cd ' . fnameescape(project_dir)
 
         " Disable session mode, plan approval, and suppress display for auto-generation
         let g:chat_gpt_session_mode = 0
@@ -122,10 +180,11 @@ function! s:check_and_update_summary()
 
         call GenerateConversationSummary()
 
-        " Restore settings
+        " Restore settings and directory
         let g:chat_gpt_session_mode = save_session_mode
         let g:chat_gpt_require_plan_approval = save_plan_approval
         let g:chat_gpt_suppress_display = save_suppress_display
+        execute 'cd ' . fnameescape(save_cwd)
     endif
 endfunction
 
