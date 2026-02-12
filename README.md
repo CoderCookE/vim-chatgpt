@@ -349,6 +349,41 @@ The model's response will be displayed in a new buffer.
 
 You can also use `GenerateCommit` command to generate a commit message for the current buffer.
 
+## Conversation History
+
+When `g:chat_gpt_session_mode` is enabled (default), the plugin maintains conversation history to provide context across multiple interactions.
+
+### Storage Location
+
+Conversation history is automatically saved to `.vim-chatgpt/history.txt` in your project directory. This allows:
+- **Persistent conversations** across Vim sessions
+- **Project-specific history** - each project has its own conversation log
+- **Easy review** - you can view or edit the history file directly
+
+### How It Works
+
+1. When you start a conversation, the plugin loads previous history from `.vim-chatgpt/history.txt`
+2. As you interact with the AI, responses are automatically appended to the history file
+3. The AI has access to previous conversation context (up to token limits)
+4. History is displayed in a Vim buffer and simultaneously saved to disk
+
+### Managing History
+
+**View history file:**
+```vim
+:e .vim-chatgpt/history.txt
+```
+
+**Clear history:**
+```bash
+rm .vim-chatgpt/history.txt
+```
+
+**Disable session mode** (no history saved):
+```vim
+let g:chat_gpt_session_mode = 0
+```
+
 ## Project Context
 
 The plugin can maintain project context to make the AI smarter about your specific codebase. This context is automatically loaded into every conversation.

@@ -164,6 +164,15 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
   normal! G
   call cursor('$', 1)
 
+  " Save to history file if this is a persistent session
+  if chat_gpt_session_id ==# 'gpt-persistent-session' && response != ''
+    python3 << EOF
+import vim
+response = vim.eval('a:response')
+save_to_history(response)
+EOF
+  endif
+
   if finish_reason != ''
     wincmd p
   endif
@@ -190,6 +199,29 @@ def safe_vim_eval(expression):
         return vim.eval(expression)
     except vim.error:
         return None
+
+
+def save_to_history(content):
+    """Save content to history file"""
+    try:
+        # Only save if session mode is enabled
+        session_enabled = int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1
+        if not session_enabled:
+            return
+
+        vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
+        history_file = os.path.join(vim_chatgpt_dir, 'history.txt')
+
+        # Ensure directory exists
+        if not os.path.exists(vim_chatgpt_dir):
+            os.makedirs(vim_chatgpt_dir)
+
+        # Append to history file
+        with open(history_file, 'a', encoding='utf-8') as f:
+            f.write(content)
+    except Exception as e:
+        # Silently ignore errors saving history
+        pass
 
 
 # Tools framework for function calling
@@ -1294,36 +1326,47 @@ def chat_gpt(prompt):
 
   # Session history management
   history = []
-  session_id = 'gpt-persistent-session' if int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1 else None
+  session_enabled = int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1
 
-  # If session id exists and is in vim buffers
-  if session_id:
-    buffer = []
+  # Create .vim-chatgpt directory if it doesn't exist
+  vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
+  if session_enabled and not os.path.exists(vim_chatgpt_dir):
+    try:
+      os.makedirs(vim_chatgpt_dir)
+    except:
+      pass
 
-    for b in vim.buffers:
-       # If the buffer name matches the session id
-      if session_id in b.name:
-        buffer = b[:]
-        break
+  # Use file-based history
+  history_file = os.path.join(vim_chatgpt_dir, 'history.txt') if session_enabled else None
+  session_id = 'gpt-persistent-session' if session_enabled else None
 
-    # Read the lines from the buffer
-    history_text = "\n".join(buffer).split('\n\n>>>')
-    history_text.reverse()
+  # Load history from file
+  if history_file and os.path.exists(history_file):
+    try:
+      with open(history_file, 'r', encoding='utf-8') as f:
+        history_content = f.read()
 
-    # Adding messages to history until token limit is reached
-    token_count = token_limits.get(model, 100000) - max_tokens - len(prompt) - len(system_message)
+      # Parse history (same format as before)
+      history_text = history_content.split('\n\n>>>')
+      history_text.reverse()
 
-    for line in history_text:
-      if ':\n' in line:
-        role, message = line.split(":\n", 1)
+      # Adding messages to history until token limit is reached
+      token_count = token_limits.get(model, 100000) - max_tokens - len(prompt) - len(system_message)
 
-        token_count -= len(message)
+      for line in history_text:
+        if ':\n' in line:
+          role, message = line.split(":\n", 1)
 
-        if token_count > 0:
-          history.insert(0, {
-              "role": role.lower(),
-              "content": message
-          })
+          token_count -= len(message)
+
+          if token_count > 0:
+            history.insert(0, {
+                "role": role.lower(),
+                "content": message
+            })
+    except Exception as e:
+      # Silently ignore errors reading history
+      pass
 
   # Display initial prompt in session
   if session_id:
@@ -1562,35 +1605,25 @@ endfunction
 " Function to generate project context
 function! GenerateProjectContext()
   " Create a prompt to generate project context
-  let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:
-
-1. Get the working directory
-2. List the root directory contents
-3. Look for README files, package.json, requirements.txt, Cargo.toml, go.mod, pom.xml, or other project metadata files
-4. Read key configuration/metadata files to understand the project
-
-Then write a summary in this format:
-
-# Project: [Name]
-
-## Type
-[e.g., Python web application, JavaScript library, Rust CLI tool, etc.]
-
-## Purpose
-[Brief description of what this project does]
-
-## Tech Stack
-[Key technologies, frameworks, and dependencies]
-
-## Structure
-[Brief overview of directory structure and key files]
-
-## Key Files
-[List important entry points, config files, etc.]
-
-Save this context to .vim-chatgpt/context.md so I understand this project in future conversations.
-
-Important: Actually use the create_file tool to save the context to .vim-chatgpt/context.md'
+  let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:'
+  let prompt .= "\n\n1. Get the working directory"
+  let prompt .= "\n2. List the root directory contents"
+  let prompt .= "\n3. Look for README files, package.json, requirements.txt, Cargo.toml, go.mod, pom.xml, or other project metadata files"
+  let prompt .= "\n4. Read key configuration/metadata files to understand the project"
+  let prompt .= "\n\nThen write a summary in this format:"
+  let prompt .= "\n\n# Project: [Name]"
+  let prompt .= "\n\n## Type"
+  let prompt .= "\n[e.g., Python web application, JavaScript library, Rust CLI tool, etc.]"
+  let prompt .= "\n\n## Purpose"
+  let prompt .= "\n[Brief description of what this project does]"
+  let prompt .= "\n\n## Tech Stack"
+  let prompt .= "\n[Key technologies, frameworks, and dependencies]"
+  let prompt .= "\n\n## Structure"
+  let prompt .= "\n[Brief overview of directory structure and key files]"
+  let prompt .= "\n\n## Key Files"
+  let prompt .= "\n[List important entry points, config files, etc.]"
+  let prompt .= "\n\nSave this context to .vim-chatgpt/context.md so I understand this project in future conversations."
+  let prompt .= "\n\nImportant: Actually use the create_file tool to save the context to .vim-chatgpt/context.md"
 
   " Use session mode 0 for one-time response
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
