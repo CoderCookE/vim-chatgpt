@@ -1691,14 +1691,17 @@ def chat_gpt(prompt):
           })
 
       # Always include last 4 messages (to maintain conversation context even after compaction)
+      # Note: parsed_messages is in reverse chronological order (newest first) due to the reverse() above
       min_messages = 4
       if len(parsed_messages) >= min_messages:
-        # Take last 4 messages
-        history = parsed_messages[-min_messages:]
-        remaining_messages = parsed_messages[:-min_messages]
+        # Take first 4 messages (newest 4)
+        history = parsed_messages[:min_messages]
+        history.reverse()  # Reverse to chronological order (oldest first) for API
+        remaining_messages = parsed_messages[min_messages:]  # Older messages
       else:
         # Take all messages if less than 4
         history = parsed_messages[:]
+        history.reverse()  # Reverse to chronological order (oldest first) for API
         remaining_messages = []
 
       # Calculate remaining token budget after including last 4 messages
@@ -1707,10 +1710,12 @@ def chat_gpt(prompt):
         token_count -= len(msg['content'])
 
       # Add older messages (from recent history window) until token limit
-      for msg in reversed(remaining_messages):
+      # remaining_messages is in reverse chronological order (newest first)
+      # We iterate through it and insert older messages at the beginning
+      for msg in remaining_messages:
         token_count -= len(msg['content'])
         if token_count > 0:
-          history.insert(0, msg)
+          history.insert(0, msg)  # Insert at beginning to maintain chronological order
         else:
           break
     except Exception as e:
