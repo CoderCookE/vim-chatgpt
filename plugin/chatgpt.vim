@@ -1074,7 +1074,7 @@ class OpenAIProvider(BaseProvider):
             if not line:
                 continue
 
-            line = line.decode('utf-8')
+            line = line.decode('utf-8', errors='replace')
             if not line.startswith('data: '):
                 continue
 
@@ -1222,7 +1222,7 @@ class AnthropicProvider(BaseProvider):
             if not line:
                 continue
 
-            line = line.decode('utf-8')
+            line = line.decode('utf-8', errors='replace')
             if not line.startswith('data: '):
                 continue
 
@@ -1498,7 +1498,7 @@ class OpenRouterProvider(BaseProvider):
             if not line:
                 continue
 
-            line = line.decode('utf-8')
+            line = line.decode('utf-8', errors='replace')
             if not line.startswith('data: '):
                 continue
 
@@ -1668,10 +1668,13 @@ def chat_gpt(prompt):
   if history_file and os.path.exists(history_file):
     try:
       # Read only from cutoff position onwards (recent uncompressed history)
-      with open(history_file, 'r', encoding='utf-8') as f:
+      # Use binary mode with explicit decode to handle UTF-8 seek issues
+      with open(history_file, 'rb') as f:
         if summary_cutoff_byte > 0:
           f.seek(summary_cutoff_byte)
-        history_content = f.read()
+        history_bytes = f.read()
+        # Decode with error handling for potential mid-character seek
+        history_content = history_bytes.decode('utf-8', errors='ignore')
 
       # Parse history (same format as before)
       history_text = history_content.split('\n\n\x01>>>')
