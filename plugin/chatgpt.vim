@@ -358,13 +358,22 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
 
   call setbufline(chat_gpt_session_id, '$', clean_lines)
 
-  " Save current window before switching to chat window
-  let l:original_winnr = winnr()
+  " Switch to chat window and scroll to bottom
+  let chat_winnr = bufwinnr(chat_gpt_session_id)
+  if chat_winnr != -1
+    let current_win = winnr()
+    execute chat_winnr . 'wincmd w'
 
-  execute bufwinnr(chat_gpt_session_id) . 'wincmd w'
-  " Move the viewport to the bottom of the buffer
-  normal! G
-  call cursor('$', 1)
+    " Move the viewport to the bottom of the buffer
+    normal! G
+    call cursor('$', 1)
+
+    " Force the window to update the scroll position
+    execute "normal! \<C-E>\<C-Y>"
+
+    " Stay in chat window to preserve scroll position
+    " (Don't return to original window here - let caller handle it)
+  endif
 
   " Save to history file if this is a persistent session
   if chat_gpt_session_id ==# 'gpt-persistent-session' && response != ''
@@ -375,8 +384,6 @@ save_to_history(response)
 EOF
   endif
 
-  " Always return to original window to avoid focus issues
-  execute l:original_winnr . 'wincmd w'
 endfunction
 
 " Function to interact with ChatGPT
@@ -717,7 +724,7 @@ def get_tool_definitions():
         },
         {
             "name": "open_file",
-            "description": "Open a file in the current Vim buffer. The file will be displayed in the editor.",
+            "description": "Open a file in Vim to show it to the user. The file will be displayed in the editor for the user to view. Use this when you need the user to see the file contents in their editor.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -2453,10 +2460,10 @@ def chat_gpt(prompt):
         if finish_reason:
           if tool_calls:
             tool_calls_to_process = tool_calls
-          else:
-            if not suppress_display:
-              vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
-              vim.command("redraw")
+
+          if not suppress_display:
+            vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
+            vim.command("redraw")
 
 
       # If no tool calls, check if this is a planning response
@@ -2699,6 +2706,17 @@ EOF
   if !exists('g:chat_gpt_suppress_display') || g:chat_gpt_suppress_display == 0
     call s:check_and_update_summary()
   endif
+
+  " After everything completes, ensure we're in the chat window at the bottom
+  " This prevents the window from scrolling up when focus changes
+  if !exists('g:chat_gpt_suppress_display') || g:chat_gpt_suppress_display == 0
+    let chat_winnr = bufwinnr('gpt-persistent-session')
+    if chat_winnr != -1
+      execute chat_winnr . 'wincmd w'
+      normal! G
+      call cursor('$', 1)
+    endif
+  endif
 endfunction
 
 " Function to send highlighted code to ChatGPT
@@ -2897,12 +2915,13 @@ try:
         # Decode with error handling for potential mid-character start/end
         # Use 'ignore' to skip invalid bytes at boundaries
         chunk_text = chunk_bytes.decode('utf-8', errors='ignore')
-        # Store in a vim variable
-        vim.command("let chunk_conversation = " + repr(chunk_text))
+        # Store in a vim variable using vim.vars (safer than repr())
+        vim.vars['_chunk_conversation'] = chunk_text
 except Exception as e:
     print(f"Error reading chunk: {e}")
-    vim.command("let chunk_conversation = ''")
+    vim.vars['_chunk_conversation'] = ''
 EOF
+        let chunk_conversation = g:_chunk_conversation
 
         " Process this chunk and save to temp file
         call s:ProcessSummaryChunk(chunk_conversation, chunk_idx + 1, chunk_count, temp_chunks_dir)
@@ -2945,11 +2964,13 @@ try:
 
         # Decode with error handling for potential mid-character boundaries
         new_conversation = chunk_bytes.decode('utf-8', errors='ignore')
-        vim.command("let new_conversation = " + repr(new_conversation))
+        # Store in a vim variable using vim.vars (safer than repr())
+        vim.vars['_new_conversation'] = new_conversation
 except Exception as e:
     print(f"Error reading conversation: {e}")
-    vim.command("let new_conversation = ''")
+    vim.vars['_new_conversation'] = ''
 EOF
+      let new_conversation = g:_new_conversation
     endif
   endif
 

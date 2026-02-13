@@ -161,6 +161,7 @@ let g:chat_gpt_split_direction = 'vertical'
 let g:split_ratio=4
 let g:chat_gpt_enable_tools=1
 let g:chat_persona='default'
+let g:chat_gpt_log_level=0  " 0=off, 1=basic, 2=verbose
 ```
 
 **Option Details:**
@@ -180,6 +181,13 @@ let g:chat_persona='default'
  - **g:chat_gpt_recent_history_size**: Keep this many bytes of recent conversation uncompressed. Older content gets compressed into summary. Default: 20480 (20KB). Controls the sliding window size.
 
 **Advanced Options:**
+
+ - **g:chat_gpt_log_level**: Debug logging level for troubleshooting. Default: 0 (disabled). Options:
+   - `0` - Logging disabled
+   - `1` - Basic logging (INFO and WARNING messages)
+   - `2` - Verbose logging (DEBUG, INFO, WARNING, ERROR messages)
+   
+   Logs are written to `.vim-chatgpt/debug.log` in your project directory. Use this for troubleshooting API issues, tool execution problems, or understanding plugin behavior.
 
  - **g:chat_gpt_suppress_display**: Internal flag to suppress response display in buffer. Default: 0 (show responses). Used internally by commands like `:GenerateCommit`, `:GptGenerateContext`, and `:GptGenerateSummary`. Not recommended for manual use.
 
