@@ -1130,6 +1130,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
         elif tool_name == "open_file":
             file_path = arguments.get("file_path")
             split = arguments.get("split", "current")
+            line_number = arguments.get("line_number")
 
             try:
                 # Check if file exists
@@ -1146,6 +1147,24 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
 
                 # Execute the Vim command
                 vim.command(vim_cmd)
+
+                # Jump to specific line if requested
+                if line_number is not None:
+                    try:
+                        # Validate line number
+                        if line_number < 1:
+                            return f"Opened file in Vim: {file_path} (split={split})\nWarning: Invalid line number {line_number}, must be >= 1"
+
+                        # Jump to the line using cursor() for reliability
+                        vim.command(f"call cursor({line_number}, 1)")
+                        # Center the line in the viewport
+                        vim.command("normal! zz")
+                        # Force redraw to ensure viewport updates
+                        vim.command("redraw")
+
+                        return f"Opened file in Vim: {file_path} at line {line_number} (split={split})"
+                    except vim.error as e:
+                        return f"Opened file in Vim: {file_path} (split={split})\nWarning: Could not jump to line {line_number}: {str(e)}"
 
                 return f"Opened file in Vim: {file_path} (split={split})"
             except vim.error as e:
@@ -2489,8 +2508,8 @@ def chat_gpt(prompt):
         if is_plan_presentation and require_plan_approval and in_planning_phase:
           # Increment loop counter to detect infinite loops
           plan_loop_count += 1
-          debug_log(f"  Plan presentation detected (loop count: {plan_loop_count})")
-          debug_log(f"  Full content that triggered detection:\n{accumulated_content}")
+          debug_log(f"INFO: Plan presentation detected (loop count: {plan_loop_count}, in_planning_phase: {in_planning_phase})")
+          debug_log(f"INFO: Full content that triggered detection:\n{accumulated_content}")
 
           # Safeguard against infinite loops
           if plan_loop_count > 2:
@@ -2537,18 +2556,21 @@ def chat_gpt(prompt):
               vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(revise_msg.replace("'", "''"), chunk_session_id))
               revision_request = vim.eval("input('What changes would you like? ')")
 
+              # Exit planning phase - revised plan will be detected separately
+              in_planning_phase = False
+
               # Send revision request back to model - handle all provider formats
               # Note: Assistant message with plan was already added above
               if provider_name == 'anthropic' and isinstance(messages, dict):
                 messages['messages'].append({
                   "role": "user",
-                  "content": f"Please revise the plan based on this feedback: {revision_request}"
+                  "content": f"Please present a REVISED PLAN based on this feedback: {revision_request}\n\nMark it clearly with '🔄 REVISED PLAN' at the top."
                 })
               elif isinstance(messages, list):
                 # OpenAI, Gemini, Ollama format
                 messages.append({
                   "role": "user",
-                  "content": f"Please revise the plan based on this feedback: {revision_request}"
+                  "content": f"Please present a REVISED PLAN based on this feedback: {revision_request}\n\nMark it clearly with '🔄 REVISED PLAN' at the top."
                 })
 
               continue  # Go to next iteration with revision request
@@ -2580,12 +2602,15 @@ def chat_gpt(prompt):
           break
 
       # Check if model is presenting a revised plan during execution
+      # Only check this if we're NOT in planning phase (to avoid double-asking)
+      # and if there are tool calls to process (model is actually making changes)
       is_revised_plan = ("🔄 REVISED PLAN" in accumulated_content or
                         "=== REVISED PLAN ===" in accumulated_content or
                         ("REVISED PLAN" in accumulated_content and not in_planning_phase))
 
       # If revised plan is detected with tool calls, ask for approval
-      if is_revised_plan and require_plan_approval and not suppress_display:
+      # Skip if we already asked during planning phase
+      if is_revised_plan and require_plan_approval and not suppress_display and tool_calls_to_process and not in_planning_phase:
 
         # Show the revised plan header
         revised_plan_header = "\n\n" + "="*70 + "\n"
@@ -2720,6 +2745,7 @@ EOF
       execute chat_winnr . 'wincmd w'
       normal! G
       call cursor('$', 1)
+      redraw
     endif
   endif
 endfunction
@@ -2777,7 +2803,13 @@ function! SendHighlightedCodeToChatGPT(ask, context) abort
     let curpos = getcurpos()
     call setpos("'<", curpos)
     call setpos("'>", curpos)
-    call setpos('.', save_cursor)
+
+    " Only restore cursor position if NOT in session mode
+    " (In session mode, we want to stay in the chat window)
+    let session_enabled = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+    if !session_enabled
+        call setpos('.', save_cursor)
+    endif
 endfunction
 
 " Function to generate a commit message using git integration
