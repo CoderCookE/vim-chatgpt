@@ -735,9 +735,9 @@ def get_tool_definitions():
                     },
                     "split": {
                         "type": "string",
-                        "description": "How to open the file: 'current' (default), 'horizontal', or 'vertical'",
+                        "description": "How to open the file: 'vertical' (default), 'horizontal', or 'current'",
                         "enum": ["current", "horizontal", "vertical"],
-                        "default": "current"
+                        "default": "vertical"
                     },
                     "line_number": {
                         "type": "integer",
@@ -930,6 +930,10 @@ def get_tool_definitions():
 def execute_tool(tool_name, arguments):
     """Execute a tool with given arguments"""
     import subprocess
+
+    # Log tool execution start
+    debug_log(f"INFO: Executing tool: {tool_name}")
+    debug_log(f"DEBUG: Tool arguments: {arguments}")
 
     try:
         if tool_name == "get_working_directory":
@@ -1129,7 +1133,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
 
         elif tool_name == "open_file":
             file_path = arguments.get("file_path")
-            split = arguments.get("split", "current")
+            split = arguments.get("split", "vertical")
             line_number = arguments.get("line_number")
 
             try:
@@ -1137,10 +1141,28 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 if not os.path.exists(file_path):
                     return f"File not found: {file_path}"
 
+                # Get absolute path for comparison
+                abs_file_path = os.path.abspath(file_path)
+
+                # Check current buffer
+                current_buffer = vim.eval("bufname('%')")
+                current_file = vim.eval("expand('%:p')") if current_buffer else ""
+
+                # Determine actual split behavior
+                actual_split = split
+
+                # If we're already in the target file, just jump to line (don't create new split)
+                if current_file and os.path.abspath(current_file) == abs_file_path:
+                    actual_split = "current"
+                # If we're in the chat session buffer, always create a split
+                elif current_buffer == "gpt-persistent-session":
+                    # Keep the requested split type (default: vertical)
+                    actual_split = split if split != "current" else "vertical"
+
                 # Build Vim command to open the file
-                if split == "horizontal":
+                if actual_split == "horizontal":
                     vim_cmd = f"split {file_path}"
-                elif split == "vertical":
+                elif actual_split == "vertical":
                     vim_cmd = f"vsplit {file_path}"
                 else:  # current
                     vim_cmd = f"edit {file_path}"
@@ -1612,12 +1634,18 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 return "\n".join(info_parts)
 
 
-            return f"Unknown tool: {tool_name}"
+            result = f"Unknown tool: {tool_name}"
+            debug_log(f"ERROR: Unknown tool requested: {tool_name}")
+            return result
 
     except subprocess.TimeoutExpired:
-        return f"Tool execution timed out: {tool_name}"
+        result = f"Tool execution timed out: {tool_name}"
+        debug_log(f"ERROR: {result}")
+        return result
     except Exception as e:
-        return f"Error executing tool {tool_name}: {str(e)}"
+        result = f"Error executing tool {tool_name}: {str(e)}"
+        debug_log(f"ERROR: {result}")
+        return result
 
 
 # Provider abstraction layer for multi-provider support
@@ -1887,6 +1915,10 @@ class AnthropicProvider(BaseProvider):
         if tools:
             formatted = self.format_tools_for_api(tools)
             payload['tools'] = formatted
+            debug_log(f"INFO: Sending {len(formatted)} tools to Anthropic API")
+            debug_log(f"DEBUG: Tool names being sent: {[t['name'] for t in formatted]}")
+        else:
+            debug_log(f"WARNING: No tools being sent to Anthropic API")
 
         # Construct URL - ensure we have /v1/messages endpoint
         base_url = self.config['base_url'].rstrip('/')
@@ -2312,7 +2344,15 @@ def chat_gpt(prompt):
   # Build system message
   personas = dict(vim.eval('g:gpt_personas'))
   persona = str(vim.eval('g:chat_persona'))
-  system_message = f"{personas[persona]} {resp}"
+
+  # Start with tool calling instruction FIRST if tools are enabled
+  enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
+  if enable_tools and provider.supports_tools():
+    system_message = "CRITICAL: You have function/tool calling capability via the API. When you need to use a tool, you MUST use the API's native tool calling feature. NEVER write text that describes or mimics tool usage. The system handles all tool execution automatically.\n\n"
+  else:
+    system_message = ""
+
+  system_message += f"{personas[persona]} {resp}"
 
   # Load project context if available
   context_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'context.md')
@@ -2352,7 +2392,7 @@ def chat_gpt(prompt):
 
   if enable_tools and provider.supports_tools():
     # Add structured workflow instructions
-    system_message += "\n\n## AGENT WORKFLOW\n\nYou are an agentic assistant that follows a structured workflow:\n\n### PHASE 1: PLANNING (when you receive a new user request)\n1. Analyze the user's intention - what is their goal?\n2. Create a detailed plan to achieve that goal\n3. Identify which tools (if any) are needed\n4. Present the plan in this EXACT format:\n\n```\n🎯 GOAL: [Clear statement of what we're trying to achieve]\n\n📋 PLAN:\n1. [First step - include tool name if needed, e.g., \"Check repository status (git_status)\"]\n2. [Second step - e.g., \"Review changes (git_diff with staged=false)\"]\n3. [Continue with all steps...]\n\n🛠️ TOOLS REQUIRED: [List tool names: git_status, git_diff, git_commit, etc.]\n\n⏱️ ESTIMATED STEPS: [Number]\n```\n\n5. CRITICAL: Present ONLY the plan text - do NOT call any tools yet\n6. Wait for user approval\n\n### PHASE 2: EXECUTION (after plan approval)\nWhen user approves the plan with a message like \"Plan approved. Please proceed\":\n1. NOW you should execute the tools according to your plan\n2. Start by calling the first tool in your plan\n2. After EACH tool execution, evaluate: \"Do the results change the plan?\"\n3. If plan needs revision:\n   - Present a REVISED PLAN using the same format\n   - Mark it with \"🔄 REVISED PLAN\" at the top\n   - Explain what changed and why\n   - Wait for user approval\n4. If plan is on track: continue to next step\n\n### PHASE 3: COMPLETION\n1. Confirm the goal has been achieved\n2. Summarize what was done\n\nIMPORTANT:\n- ALWAYS start with PLANNING phase for new requests\n- NEVER execute tools before showing a plan (unless plan approval is disabled)\n- After each tool execution, EVALUATE if plan needs adjustment\n- Be transparent about what you're doing and why\n"
+    system_message += "\n\n## TOOL CALLING CAPABILITY\n\nYou have access to function/tool calling via the API. Tools are available through the native tool calling feature.\n\nIMPORTANT: When executing tools:\n- Use the API's tool/function calling feature (NOT text descriptions)\n- Do NOT write text that mimics tool execution like '✓ Success: git_status()'\n- Do NOT output text like '🔧 Tool Execution' or 'Calling tool: X'\n- The system automatically handles and displays tool execution\n- Your job is to CALL the tools via the API, not describe them in text\n\n## AGENT WORKFLOW\n\nYou are an agentic assistant that follows a structured workflow:\n\n### PHASE 1: PLANNING (when you receive a new user request)\n1. Analyze the user's intention - what is their goal?\n2. Create a detailed plan to achieve that goal\n3. Identify which tools (if any) are needed\n4. Present the plan in this EXACT format:\n\n```\n🎯 GOAL: [Clear statement of what we're trying to achieve]\n\n📋 PLAN:\n1. [First step - include tool name if needed, e.g., \"Check repository status (git_status)\"]\n2. [Second step - e.g., \"Review changes (git_diff with staged=false)\"]\n3. [Continue with all steps...]\n\n🛠️ TOOLS REQUIRED: [List tool names: git_status, git_diff, git_commit, etc.]\n\n⏱️ ESTIMATED STEPS: [Number]\n```\n\n5. CRITICAL: Present ONLY the plan text - do NOT call any tools yet\n6. Wait for user approval\n\n### PHASE 2: EXECUTION (after plan approval)\nWhen user approves the plan with a message like \"Plan approved. Please proceed\":\n1. IMMEDIATELY use your tool calling API capability - do NOT write any text or descriptions\n2. DO NOT output ANY text like: \"🔧 Tool Execution\", \"══════\", \"Step 1:\", \"Checking status\", or descriptions of what you're doing\n3. Your response must contain ONLY function/tool calls using the tool calling feature - NO text content\n4. After each tool execution completes and you see the results, evaluate: \"Do the results change the plan?\"\n5. If plan needs revision:\n   - Present a REVISED PLAN using the same format\n   - Mark it with \"🔄 REVISED PLAN\" at the top\n   - Explain what changed and why\n   - Wait for user approval\n6. If plan is on track: make the NEXT tool call (again, ONLY tool calls, NO text)\n7. Continue until all steps complete\n\n### PHASE 3: COMPLETION\n1. Confirm the goal has been achieved\n2. Summarize what was done\n\nCRITICAL EXECUTION RULES:\n- ALWAYS start with PLANNING phase for new requests\n- NEVER execute tools before showing a plan (unless plan approval is disabled)\n- When executing: Your response must be ONLY tool calls, ZERO text content\n- The system automatically displays tool execution progress - you must NOT output any text\n- DO NOT mimic or output text like \"Tool Execution - Step X\" or separator lines\n- After each tool execution, EVALUATE if plan needs adjustment\n- Between tool calls, you can provide brief analysis text, but during the actual tool call, ONLY send the function call\n"
 
     if not require_plan_approval:
       system_message += "\nNOTE: Plan approval is DISABLED. You should still create plans mentally, but execute tools immediately.\n"
@@ -2450,6 +2490,8 @@ def chat_gpt(prompt):
   enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
   if enable_tools and provider.supports_tools():
     tools = get_tool_definitions()
+    debug_log(f"INFO: Tools enabled - {len(tools)} tools available")
+    debug_log(f"DEBUG: Available tools: {[t['name'] for t in tools]}")
   else:
     debug_log(f"WARNING: Tools not enabled - enable_tools={enable_tools}, supports_tools={provider.supports_tools()}")
 
@@ -2483,6 +2525,9 @@ def chat_gpt(prompt):
         # Handle finish
         if finish_reason:
           if tool_calls:
+            debug_log(f"INFO: Model requested {len(tool_calls)} tool call(s)")
+            for idx, tc in enumerate(tool_calls):
+              debug_log(f"DEBUG: Tool call {idx+1}: {tc['name']} with args: {json.dumps(tc['arguments'])}")
             tool_calls_to_process = tool_calls
 
           if not suppress_display:
@@ -2492,10 +2537,11 @@ def chat_gpt(prompt):
 
       # If no tool calls, check if this is a planning response
       if not tool_calls_to_process:
-        debug_log(f"No tool calls. Checking for plan presentation...")
-        debug_log(f"  accumulated_content length: {len(accumulated_content)}")
-        debug_log(f"  require_plan_approval: {require_plan_approval}")
-        debug_log(f"  in_planning_phase: {in_planning_phase}")
+        debug_log(f"INFO: No tool calls received from model")
+        debug_log(f"DEBUG: Checking for plan presentation...")
+        debug_log(f"DEBUG:   accumulated_content length: {len(accumulated_content)}")
+        debug_log(f"DEBUG:   require_plan_approval: {require_plan_approval}")
+        debug_log(f"DEBUG:   in_planning_phase: {in_planning_phase}")
 
         # Check if this is a plan presentation (contains goal/plan markers)
         # Fix boolean logic: parenthesize the 'and' condition
@@ -2582,7 +2628,7 @@ def chat_gpt(prompt):
               vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
 
               # Send approval message to model to trigger execution - handle all provider formats
-              approval_instruction = "Plan approved. Please proceed with executing the plan step by step. Use the tools as specified in your plan. Start with step 1 and call the first tool now."
+              approval_instruction = "Plan approved. Execute step 1 now.\n\nCRITICAL INSTRUCTIONS:\n- Your response must contain ONLY the tool/function call for step 1\n- Do NOT write ANY text content in your response\n- Do NOT output headers like '🔧 Tool Execution' or '══════' or 'Step 1:'\n- The system will automatically display the tool execution progress\n- Just make the actual API function call and nothing else\n- After the tool completes, you'll see the results and can proceed to the next step"
 
               if provider_name == 'anthropic' and isinstance(messages, dict):
                 messages['messages'].append({
@@ -2636,6 +2682,9 @@ def chat_gpt(prompt):
 
       # Execute tools and add results to messages
       tool_iteration += 1
+      debug_log(f"INFO: Starting tool execution iteration {tool_iteration}/{max_tool_iterations}")
+      debug_log(f"DEBUG: Processing {len(tool_calls_to_process) if tool_calls_to_process else 0} tool calls")
+
       if not suppress_display:
         # Display iteration header with formatting
         iteration_msg = "\n\n" + format_separator("═", 70) + f"\n🔧 Tool Execution - Iteration {tool_iteration}\n" + format_separator("═", 70) + "\n"
@@ -2672,8 +2721,17 @@ def chat_gpt(prompt):
         tool_args = tool_call['arguments']
         tool_id = tool_call.get('id', 'unknown')
 
+        debug_log(f"INFO: About to execute tool: {tool_name} with id: {tool_id}")
+        debug_log(f"DEBUG: Tool arguments: {json.dumps(tool_args)}")
+
         # Execute the tool
         tool_result = execute_tool(tool_name, tool_args)
+
+        # Log the result
+        result_preview = tool_result[:200] if len(tool_result) > 200 else tool_result
+        debug_log(f"INFO: Tool {tool_name} completed. Result length: {len(tool_result)} chars")
+        debug_log(f"DEBUG: Tool result preview: {result_preview}")
+
         tool_results.append((tool_id, tool_name, tool_args, tool_result))
 
         # Display tool usage in session
