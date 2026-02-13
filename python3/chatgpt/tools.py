@@ -9,7 +9,12 @@ import os
 import subprocess
 import re
 import vim
-from chatgpt.utils import debug_log
+from chatgpt.utils import debug_log, safe_vim_eval
+
+
+# Session-level cache for approved tools
+# Keys: tool_name -> approval status ('always', 'session', 'denied')
+_approved_tools = {}
 
 
 def get_tool_definitions():
@@ -431,11 +436,100 @@ def validate_file_path(file_path, operation="file operation"):
         return (False, f"Security: Error validating path: {str(e)}")
 
 
+def clear_tool_approvals():
+    """
+    Clear all tool approvals for the current session.
+    Useful for resetting permissions if you want to re-approve tools.
+    """
+    global _approved_tools
+    _approved_tools.clear()
+    debug_log("INFO: All tool approvals cleared")
+
+
+def get_approved_tools():
+    """
+    Get list of currently approved tools.
+
+    Returns:
+        dict: Dictionary of tool_name -> approval_status
+    """
+    return _approved_tools.copy()
+
+
+def check_tool_approval(tool_name, arguments):
+    """
+    Check if tool is approved for execution. Prompts user on first use.
+
+    Returns:
+        tuple: (is_approved: bool, message: str or None)
+    """
+    global _approved_tools
+
+    # Check if tool approval is enabled (disabled by default for backwards compatibility)
+    require_approval = safe_vim_eval('exists("g:chat_gpt_require_tool_approval") ? g:chat_gpt_require_tool_approval : 0') or '0'
+    if require_approval == '0':
+        return (True, None)
+
+    # Check if tool is already approved
+    if tool_name in _approved_tools:
+        status = _approved_tools[tool_name]
+        if status == 'denied':
+            return (False, f"Tool '{tool_name}' was denied by user")
+        # 'always' or 'session' - both mean approved
+        return (True, None)
+
+    # First time using this tool - prompt user
+    try:
+        # Format arguments for display (truncate if too long)
+        args_str = str(arguments)
+        if len(args_str) > 100:
+            args_str = args_str[:100] + "..."
+
+        # Build prompt message
+        prompt_msg = f"AI wants to use tool: {tool_name}\\n"
+        prompt_msg += f"Arguments: {args_str}\\n\\n"
+        prompt_msg += "Allow this tool?"
+
+        # Escape special characters for Vim string
+        prompt_msg_escaped = prompt_msg.replace("'", "''")
+
+        # Prompt user with options
+        # 1 = Allow Once
+        # 2 = Always Allow
+        # 3 = Deny
+        result = int(vim.eval(f"confirm('{prompt_msg_escaped}', '&Allow Once\\n&Always Allow\\n&Deny', 1)"))
+
+        if result == 1:
+            # Allow once - don't add to cache
+            debug_log(f"INFO: Tool '{tool_name}' allowed once by user")
+            return (True, None)
+        elif result == 2:
+            # Always allow - add to cache
+            _approved_tools[tool_name] = 'always'
+            debug_log(f"INFO: Tool '{tool_name}' always allowed by user")
+            return (True, None)
+        else:  # result == 3 or any other value (including escape)
+            # Deny - add to cache
+            _approved_tools[tool_name] = 'denied'
+            debug_log(f"WARNING: Tool '{tool_name}' denied by user")
+            return (False, f"Tool '{tool_name}' denied by user")
+
+    except Exception as e:
+        # If we can't prompt (e.g., in non-interactive mode), deny by default
+        debug_log(f"ERROR: Failed to prompt user for tool approval: {str(e)}")
+        return (False, f"Tool approval failed: {str(e)}")
+
+
 def execute_tool(tool_name, arguments):
     """Execute a tool with given arguments"""
 
     debug_log(f"INFO: Executing tool: {tool_name}")
     debug_log(f"DEBUG: Tool arguments: {arguments}")
+
+    # Check tool approval first
+    is_approved, approval_msg = check_tool_approval(tool_name, arguments)
+    if not is_approved:
+        return f"Tool execution blocked: {approval_msg}"
 
     try:
         if tool_name == "get_working_directory":
