@@ -284,6 +284,11 @@ if !exists("g:openrouter_base_url")
   let g:openrouter_base_url = 'https://openrouter.ai/api/v1'
 endif
 
+" Debug logging level (0=off, 1=basic, 2=verbose)
+if !exists("g:chat_gpt_log_level")
+  let g:chat_gpt_log_level = 0
+endif
+
 let code_wrapper_snippet = "Given the following code snippet: "
 let g:prompt_templates = {
 \ 'ask': '',
@@ -402,16 +407,76 @@ def safe_vim_eval(expression):
     except vim.error:
         return None
 
+# Log level constants
+LOG_LEVEL_DEBUG = 0
+LOG_LEVEL_INFO = 1
+LOG_LEVEL_WARNING = 2
+LOG_LEVEL_ERROR = 3
+
+# Map string prefixes to log levels
+LOG_LEVEL_MAP = {
+    'DEBUG:': LOG_LEVEL_DEBUG,
+    'INFO:': LOG_LEVEL_INFO,
+    'WARNING:': LOG_LEVEL_WARNING,
+    'ERROR:': LOG_LEVEL_ERROR,
+}
 
 def debug_log(msg):
-    """Write debug messages to /tmp/vim-chatgpt-debug.log"""
+    """
+    Write debug messages to a log file for troubleshooting.
+    
+    Messages can be prefixed with a log level:
+    - DEBUG: Detailed debugging information (level 0)
+    - INFO: General informational messages (level 1)
+    - WARNING: Warning messages (level 2)
+    - ERROR: Error messages (level 3)
+    
+    If no prefix is provided, the message is treated as DEBUG level.
+    
+    The g:chat_gpt_log_level setting controls which messages are logged:
+    - 0: Disabled (no logging)
+    - 1: DEBUG and above (all messages)
+    - 2: INFO and above
+    - 3: WARNING and above
+    - 4: ERROR only
+    """
     try:
-        with open('/tmp/vim-chatgpt-debug.log', 'a') as f:
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-            f.write(f"[{timestamp}] {msg}\n")
-            f.flush()
-    except:
+        import vim
+        configured_level = int(vim.eval('exists("g:chat_gpt_log_level") ? g:chat_gpt_log_level : 0'))
+        
+        # If logging is disabled (0), don't log anything
+        if configured_level == 0:
+            return
+        
+        # Parse log level from message
+        message_level = LOG_LEVEL_DEBUG  # Default to DEBUG
+        clean_msg = msg
+        
+        for prefix, level in LOG_LEVEL_MAP.items():
+            if msg.startswith(prefix):
+                message_level = level
+                clean_msg = msg[len(prefix):].strip()
+                break
+        
+        # Filter: only log if message level >= (configured_level - 1)
+        # configured_level 1 = DEBUG (0) and above
+        # configured_level 2 = INFO (1) and above
+        # configured_level 3 = WARNING (2) and above
+        # configured_level 4 = ERROR (3) only
+        if message_level < (configured_level - 1):
+            return
+        
+        log_file = '/tmp/vim-chatgpt-debug.log'
+        
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        level_name = [k for k, v in LOG_LEVEL_MAP.items() if v == message_level]
+        level_str = level_name[0].rstrip(':') if level_name else 'DEBUG'
+        
+        with open(log_file, 'a') as f:
+            f.write(f'[{timestamp}] [{level_str}] {clean_msg}\n')
+    except Exception as e:
+        # Silently fail - don't interrupt the plugin
         pass
 
 
@@ -921,11 +986,21 @@ def execute_tool(tool_name, arguments):
             file_path = arguments.get("file_path")
             pattern = arguments.get("pattern")
             case_sensitive = arguments.get("case_sensitive", False)
+            use_regex = arguments.get("use_regex", False)
 
-            # Build grep command with -F for fixed string search (safer)
-            cmd = ["grep", "-n", "-F"]
+            # Build grep command - use extended regex by default, or fixed string if requested
+            cmd = ["grep", "-n"]
+
+            if not use_regex:
+                # Use fixed string for safety (prevents regex errors)
+                cmd.append("-F")
+            else:
+                # Use extended regex
+                cmd.append("-E")
+
             if not case_sensitive:
                 cmd.append("-i")
+
             cmd.extend([pattern, file_path])
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -934,6 +1009,9 @@ def execute_tool(tool_name, arguments):
             elif result.returncode == 1:
                 return f"No matches found for '{pattern}' in {file_path}"
             else:
+                # Check if it's a regex error
+                if "invalid" in result.stderr.lower() or "unmatched" in result.stderr.lower():
+                    return f"Invalid regex pattern '{pattern}'. Error: {result.stderr.strip()}"
                 return f"Error searching file: {result.stderr.strip()}"
 
         elif tool_name == "find_file_in_project":
@@ -2163,7 +2241,7 @@ def chat_gpt(prompt):
   import sys
 
   # Log minimal info for debugging
-  debug_log(f"chat_gpt called - prompt length: {len(prompt)}")
+  debug_log(f"INFO: chat_gpt called - prompt length: {len(prompt)}")
 
   token_limits = {
     "gpt-3.5-turbo": 4097,
@@ -2290,11 +2368,11 @@ def chat_gpt(prompt):
               "content": message
           })
 
-      # Always include last 3 messages (to maintain conversation context even after compaction)
+      # Always include last 4 messages (to maintain conversation context even after compaction)
       # Note: parsed_messages is in reverse chronological order (newest first) due to the reverse() above
-      min_messages = 3
+      min_messages = 4
       if len(parsed_messages) >= min_messages:
-        # Take first 3 messages (newest 3)
+        # Take first 4 messages (newest 4)
         history = parsed_messages[:min_messages]
         history.reverse()  # Reverse to chronological order (oldest first) for API
         remaining_messages = parsed_messages[min_messages:]  # Older messages
@@ -2351,7 +2429,7 @@ def chat_gpt(prompt):
     tool_iteration = 0
     plan_approved = not require_plan_approval  # Skip approval if not required
     accumulated_content = ""  # Accumulate content for each iteration
-    in_planning_phase = True  # Start in planning phase for new requests
+    in_planning_phase = require_plan_approval  # Only enter planning phase if approval is required
     plan_loop_count = 0  # Track how many times we've seen a plan without tool execution
 
     while tool_iteration < max_tool_iterations:
