@@ -1,0 +1,186 @@
+"""
+Pytest fixtures and configuration for vim-chatgpt tests
+
+This module provides shared fixtures for mocking the Vim environment
+and common test utilities.
+"""
+
+import pytest
+import sys
+from unittest.mock import MagicMock, Mock
+import os
+import tempfile
+import shutil
+
+
+# Mock vim module BEFORE any imports happen
+# This needs to be at module level so it runs before test discovery
+vim_mock = MagicMock()
+vim_mock.eval = MagicMock(return_value='')
+vim_mock.command = MagicMock()
+vim_mock.current = MagicMock()
+vim_mock.current.buffer = []
+vim_mock.error = Exception  # vim.error is an exception type
+sys.modules['vim'] = vim_mock
+
+
+@pytest.fixture
+def mock_vim():
+    """Mock the vim module for testing outside of Vim"""
+    vim_mock = MagicMock()
+    
+    # Mock vim.eval() to return sensible defaults
+    def mock_eval(expr):
+        defaults = {
+            'g:chat_gpt_max_tokens': '2000',
+            'g:chat_gpt_model': 'gpt-4',
+            'g:chat_gpt_session_mode': '0',
+            'g:chat_gpt_temperature': '0.7',
+            'g:chat_gpt_custom_persona': '',
+            'g:chat_gpt_lang': 'English',
+            'g:chat_gpt_split_direction': 'vertical',
+            'g:chat_gpt_debug': '0',
+            'g:openai_api_key': 'test-api-key',
+            'g:chat_gpt_suppress_display': '0',
+            'g:chat_gpt_session_id': 'test-session',
+            'g:chat_gpt_provider': 'openai',
+            'exists("g:chat_gpt_custom_persona")': '0',
+        }
+        return defaults.get(expr, '')
+    
+    vim_mock.eval = mock_eval
+    vim_mock.command = MagicMock()
+    vim_mock.current = MagicMock()
+    vim_mock.current.buffer = []
+    
+    # Mock vim module in sys.modules
+    sys.modules['vim'] = vim_mock
+    
+    yield vim_mock
+    
+    # Cleanup
+    if 'vim' in sys.modules:
+        del sys.modules['vim']
+
+
+@pytest.fixture
+def temp_project_dir():
+    """Create a temporary project directory for testing"""
+    temp_dir = tempfile.mkdtemp(prefix='vim_chatgpt_test_')
+    
+    # Create a .git directory to simulate a git repo
+    git_dir = os.path.join(temp_dir, '.git')
+    os.makedirs(git_dir)
+    
+    # Create a .vim-chatgpt directory
+    vim_chatgpt_dir = os.path.join(temp_dir, '.vim-chatgpt')
+    os.makedirs(vim_chatgpt_dir)
+    
+    yield temp_dir
+    
+    # Cleanup
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@pytest.fixture
+def mock_history_file(temp_project_dir):
+    """Create a mock history file"""
+    history_path = os.path.join(temp_project_dir, '.vim-chatgpt', 'history.txt')
+    with open(history_path, 'w') as f:
+        f.write("User: Hello\nAssistant: Hi there!\n")
+    return history_path
+
+
+@pytest.fixture
+def mock_context_file(temp_project_dir):
+    """Create a mock context file"""
+    context_path = os.path.join(temp_project_dir, '.vim-chatgpt', 'context.md')
+    with open(context_path, 'w') as f:
+        f.write("# Project Context\n\nThis is a test project.\n")
+    return context_path
+
+
+@pytest.fixture
+def mock_openai_response():
+    """Mock OpenAI API response"""
+    return {
+        "id": "chatcmpl-123",
+        "object": "chat.completion",
+        "created": 1677652288,
+        "model": "gpt-4",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "This is a test response"
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30
+        }
+    }
+
+
+@pytest.fixture
+def mock_anthropic_response():
+    """Mock Anthropic API response"""
+    return {
+        "id": "msg_123",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+            {
+                "type": "text",
+                "text": "This is a test response"
+            }
+        ],
+        "model": "claude-3-opus-20240229",
+        "stop_reason": "end_turn",
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 20
+        }
+    }
+
+
+@pytest.fixture
+def mock_streaming_response():
+    """Mock streaming SSE response"""
+    def generate_chunks():
+        chunks = [
+            b'data: {"choices": [{"delta": {"content": "Hello"}}]}\n\n',
+            b'data: {"choices": [{"delta": {"content": " world"}}]}\n\n',
+            b'data: {"choices": [{"delta": {}}], "finish_reason": "stop"}\n\n',
+            b'data: [DONE]\n\n'
+        ]
+        for chunk in chunks:
+            yield chunk
+    
+    mock_response = Mock()
+    mock_response.iter_lines = Mock(return_value=generate_chunks())
+    mock_response.status_code = 200
+    return mock_response
+
+
+@pytest.fixture
+def sample_tool_call():
+    """Sample tool call for testing"""
+    return {
+        "id": "call_123",
+        "type": "function",
+        "function": {
+            "name": "find_file",
+            "arguments": '{"pattern": "*.py", "max_results": 10}'
+        }
+    }
+
+
+@pytest.fixture
+def mock_env_vars(monkeypatch):
+    """Mock environment variables"""
+    monkeypatch.setenv('OPENAI_API_KEY', 'test-openai-key')
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'test-anthropic-key')
+    monkeypatch.setenv('GEMINI_API_KEY', 'test-gemini-key')

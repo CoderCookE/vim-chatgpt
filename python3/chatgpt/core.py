@@ -113,7 +113,7 @@ def chat_gpt(prompt):
 
     if enable_tools and provider.supports_tools():
         # Add tool calling capability instructions
-        system_message += "\n\n## TOOL CALLING CAPABILITY\n\nYou have access to function/tool calling via the API. Tools are available through the native tool calling feature.\n\nIMPORTANT: When executing tools:\n- Use the API's tool/function calling feature (NOT text descriptions)\n- Do NOT write text that mimics tool execution like ' Success: git_status()'\n- Do NOT output text like ' Tool Execution' or 'Calling tool: X'\n- The system automatically handles and displays tool execution\n- Your job is to CALL the tools via the API, not describe them in text\n"
+        system_message += "\n\n## TOOL CALLING CAPABILITY\n\nYou have access to function/tool calling via the API. Tools are available through the native tool calling feature.\n\nIMPORTANT: When executing tools:\n- Use the API's tool/function calling feature (NOT text descriptions)\n- Do NOT write text that mimics tool execution like 'Success: git_status()'\n- Do NOT output text like 'Tool Execution' or 'Calling tool: X'\n- The system automatically handles and displays tool execution\n- Your job is to CALL the tools via the API, not describe them in text\n"
 
         if require_plan_approval:
             # Add planning workflow only when plan approval is required
@@ -207,7 +207,7 @@ CRITICAL EXECUTION RULES:
                 # Decode with error handling for potential mid-character seek
                 history_content = history_bytes.decode('utf-8', errors='ignore')
 
-            # Parse history (same format as before)
+            # Parse history (format: \n\n\x01>>>Role:\x01\nmessage)
             history_text = history_content.split('\n\n\x01>>>')
             history_text.reverse()
 
@@ -255,7 +255,7 @@ CRITICAL EXECUTION RULES:
 
     # Display initial prompt in session
     if session_id and not suppress_display:
-        content = '\n\n>>>User:\n' + prompt + '\n\n>>>Assistant:\n'
+        content = '\n\n\x01>>>User:\x01\n' + prompt + '\n\n\x01>>>Assistant:\x01\n'
 
         vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(content.replace("'", "''"), session_id))
         vim.command("redraw")
@@ -329,10 +329,8 @@ CRITICAL EXECUTION RULES:
                 debug_log(f"DEBUG:   in_planning_phase: {in_planning_phase}")
 
                 # Check if this is a plan presentation (contains goal/plan markers)
-                # Fix boolean logic: parenthesize the 'and' condition
-                # Removed emoji markers - using text-only markers now
                 has_text_markers = ('GOAL:' in accumulated_content and 'PLAN:' in accumulated_content)
-                is_plan_presentation = has_emoji_markers or has_text_markers
+                is_plan_presentation = has_text_markers
                 debug_log(f"  is_plan_presentation: {is_plan_presentation}")
                 debug_log(f"  Content preview: {accumulated_content[:300]}")
 
@@ -413,7 +411,7 @@ CRITICAL EXECUTION RULES:
                             vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
 
                             # Send approval message to model to trigger execution - handle all provider formats
-                            approval_instruction = "Plan approved. Execute step 1 now.\n\nCRITICAL INSTRUCTIONS:\n- Your response must contain ONLY the tool/function call for step 1\n- Do NOT write ANY text content in your response\n- Do NOT output headers like ' Tool Execution' or 'PPPPPP' or 'Step 1:'\n- The system will automatically display the tool execution progress\n- Just make the actual API function call and nothing else\n- After the tool completes, you'll see the results and can proceed to the next step"
+                            approval_instruction = "Plan approved. Execute step 1 now.\n\nCRITICAL INSTRUCTIONS:\n- Your response must contain ONLY the tool/function call for step 1\n- Do NOT write ANY text content in your response\n- Do NOT output headers like 'Tool Execution' or '======' or 'Step 1:'\n- The system will automatically display the tool execution progress\n- Just make the actual API function call and nothing else\n- After the tool completes, you'll see the results and can proceed to the next step"
 
                             if provider_name == 'anthropic' and isinstance(messages, dict):
                                 messages['messages'].append({
@@ -482,7 +480,7 @@ CRITICAL EXECUTION RULES:
 
             if not suppress_display:
                 # Display iteration header with formatting
-                iteration_msg = "\n\n" + format_separator("P", 70) + f"\n Tool Execution - Iteration {tool_iteration}\n" + format_separator("P", 70) + "\n"
+                iteration_msg = "\n\n" + format_separator("=", 70) + f"\nTool Execution - Iteration {tool_iteration}\n" + format_separator("=", 70) + "\n"
                 vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(iteration_msg.replace("'", "''"), chunk_session_id))
                 vim.command("redraw")
 
