@@ -365,6 +365,9 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
 
   call setbufline(chat_gpt_session_id, '$', clean_lines)
 
+  " Save current window before switching to chat window
+  let l:original_winnr = winnr()
+
   execute bufwinnr(chat_gpt_session_id) . 'wincmd w'
   " Move the viewport to the bottom of the buffer
   normal! G
@@ -379,9 +382,8 @@ save_to_history(response)
 EOF
   endif
 
-  if finish_reason != ''
-    wincmd p
-  endif
+  " Always return to original window to avoid focus issues
+  execute l:original_winnr . 'wincmd w'
 endfunction
 
 " Function to interact with ChatGPT
@@ -743,13 +745,8 @@ def get_tool_definitions():
                 },
                 "required": ["message"]
             }
-
-                },
-                "required": ["command"]
-            }
         }
     ]
-
 
 def execute_tool(tool_name, arguments):
     """Execute a tool with given arguments"""
@@ -1028,15 +1025,37 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 end_idx = end_line - 1
 
                 # Prepare new content lines
+                # Handle the case where content ends with \n (split creates empty string at end)
                 new_lines = new_content.split('\n') if new_content else []
-                # Ensure each line has a newline except possibly the last
-                new_lines_formatted = [line + '\n' if not line.endswith('\n') else line for line in new_lines[:-1]]
-                if new_lines:
-                    # For the last line, add newline only if original last line had one
-                    if end_idx < total_lines - 1 or (end_idx == total_lines - 1 and lines[end_idx].endswith('\n')):
-                        new_lines_formatted.append(new_lines[-1] + '\n' if not new_lines[-1].endswith('\n') else new_lines[-1])
+                # Remove trailing empty string if content ended with newline
+                if new_lines and new_lines[-1] == '':
+                    new_lines = new_lines[:-1]
+                    content_had_trailing_newline = True
+                else:
+                    content_had_trailing_newline = False
+
+                # Build formatted lines with proper newline handling
+                new_lines_formatted = []
+                for i, line in enumerate(new_lines):
+                    is_last_line = (i == len(new_lines) - 1)
+
+                    if is_last_line:
+                        # For the last line, add newline based on context:
+                        # 1. If we're replacing lines in the middle of the file, always add newline
+                        # 2. If we're replacing the last line(s), match original file's newline behavior
+                        # 3. If content had trailing newline, preserve it
+                        if end_idx < total_lines - 1:
+                            # Replacing lines in the middle - always add newline
+                            new_lines_formatted.append(line + '\n')
+                        elif content_had_trailing_newline or (end_idx == total_lines - 1 and lines[end_idx].endswith('\n')):
+                            # At end of file, but either content or original had trailing newline
+                            new_lines_formatted.append(line + '\n')
+                        else:
+                            # At end of file, no trailing newline
+                            new_lines_formatted.append(line)
                     else:
-                        new_lines_formatted.append(new_lines[-1])
+                        # Not the last line - always add newline
+                        new_lines_formatted.append(line + '\n')
 
                 # Build the new file content
                 new_file_lines = lines[:start_idx] + new_lines_formatted + lines[end_idx + 1:]
@@ -2140,12 +2159,12 @@ def chat_gpt(prompt):
 
         if not suppress_display:
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
-          vim.command("redraw")
 
-        # Switch to first window (original editing window) so user can see and respond to input prompt
-        # The input() prompt appears on the command line which is always visible, but we need to be in the right window
-        vim.command("1wincmd w")  # Focus first window
-        vim.command("redraw")  # Force screen update before showing input prompt
+        # Ensure we're in a proper window for input (DisplayChatGPTResponse now returns to original window)
+        # Force multiple redraws to ensure display is fully updated before prompting
+        vim.command("redraw!")
+        vim.command("sleep 100m")  # Brief pause to ensure redraw completes
+        vim.command("redraw!")
 
         approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
         approval = vim.eval(f"input('{approval_prompt}')")
@@ -2315,7 +2334,6 @@ function! SendHighlightedCodeToChatGPT(ask, context) abort
 endfunction
 
 " Function to generate a commit message using git integration
-" Function to generate a commit message using git integration
 function! GenerateCommitMessage()
   " Create a prompt that instructs the AI to use git tools
   let prompt = 'Please help me create a git commit message. Use the git tools to:'
@@ -2335,9 +2353,14 @@ function! GenerateCommitMessage()
   call ChatGPT(prompt)
 endfunction
 
-
 " Function to generate project context
-
+function! GenerateProjectContext()
+  " Create a prompt to generate project context
+  let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:'
+  let prompt .= "\n\n1. Get the working directory"
+  let prompt .= "\n2. List the root directory contents"
+  let prompt .= "\n3. Look for README files, package.json, requirements.txt, Cargo.toml, go.mod, pom.xml, or other project metadata files"
+  let prompt .= "\n4. Read key configuration/metadata files to understand the project"
   let prompt .= "\n\nThen write a summary in this format:"
   let prompt .= "\n\n# Project: [Name]"
   let prompt .= "\n\n## Type"
