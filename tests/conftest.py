@@ -16,11 +16,16 @@ import shutil
 # Mock vim module BEFORE any imports happen
 # This needs to be at module level so it runs before test discovery
 vim_mock = MagicMock()
+
+# Create proper vim.error exception class
+class VimError(Exception):
+    pass
+
+vim_mock.error = VimError
 vim_mock.eval = MagicMock(return_value='')
 vim_mock.command = MagicMock()
 vim_mock.current = MagicMock()
 vim_mock.current.buffer = []
-vim_mock.error = Exception  # vim.error is an exception type
 sys.modules['vim'] = vim_mock
 
 
@@ -28,7 +33,7 @@ sys.modules['vim'] = vim_mock
 def mock_vim():
     """Mock the vim module for testing outside of Vim"""
     vim_mock = MagicMock()
-    
+
     # Mock vim.eval() to return sensible defaults
     def mock_eval(expr):
         defaults = {
@@ -37,30 +42,38 @@ def mock_vim():
             'g:chat_gpt_session_mode': '0',
             'g:chat_gpt_temperature': '0.7',
             'g:chat_gpt_custom_persona': '',
-            'g:chat_gpt_lang': 'English',
+            'g:chat_gpt_lang': 'None',
             'g:chat_gpt_split_direction': 'vertical',
             'g:chat_gpt_debug': '0',
+            'g:chat_gpt_log_level': '0',
             'g:openai_api_key': 'test-api-key',
+            'g:anthropic_api_key': 'test-anthropic-key',
+            'g:gemini_api_key': 'test-gemini-key',
+            'g:openrouter_api_key': 'test-openrouter-key',
             'g:chat_gpt_suppress_display': '0',
             'g:chat_gpt_session_id': 'test-session',
             'g:chat_gpt_provider': 'openai',
+            'g:chat_persona': 'default',
+            'g:gpt_personas': {'default': 'You are a helpful assistant'},  # Return actual dict
             'exists("g:chat_gpt_custom_persona")': '0',
+            'exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0': '0',
+            'exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1': '1',
+            'exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1': '1',
+            'exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1': '0',
+            'exists("g:chat_gpt_log_level") ? g:chat_gpt_log_level : 0': '0',
         }
         return defaults.get(expr, '')
-    
+
     vim_mock.eval = mock_eval
     vim_mock.command = MagicMock()
     vim_mock.current = MagicMock()
     vim_mock.current.buffer = []
-    
-    # Mock vim module in sys.modules
+    vim_mock.error = VimError
+
+    # Update the global mock
     sys.modules['vim'] = vim_mock
-    
+
     yield vim_mock
-    
-    # Cleanup
-    if 'vim' in sys.modules:
-        del sys.modules['vim']
 
 
 @pytest.fixture

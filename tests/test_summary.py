@@ -124,7 +124,7 @@ Second response
         }
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_generates_summary_for_new_conversation(self, mock_getcwd, mock_safe_eval,
                                                     mock_chat_gpt, mock_env):
@@ -141,7 +141,7 @@ Second response
         assert 'create_file' in call_args
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_extends_existing_summary(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should extend existing summary with new conversation"""
@@ -167,7 +167,7 @@ Previous topics discussed"""
         assert 'extend' in call_args.lower() or 'add' in call_args.lower()
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_respects_recent_window_size(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should keep recent N bytes unsummarized"""
@@ -186,7 +186,7 @@ Previous topics discussed"""
         # The prompt should not include the very last bytes
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_handles_missing_history_file(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, tmp_path):
         """Should handle case when history file doesn't exist"""
@@ -200,7 +200,7 @@ Previous topics discussed"""
         assert not mock_chat_gpt.called
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_limits_compaction_size(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should limit amount of history to summarize in one go"""
@@ -218,7 +218,7 @@ Previous topics discussed"""
         assert mock_chat_gpt.called
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_handles_utf8_boundaries(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should handle UTF-8 character boundaries when seeking"""
@@ -242,7 +242,7 @@ Hi there! 👋
         assert mock_chat_gpt.called
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_includes_format_instructions(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should include formatting instructions in prompt"""
@@ -261,7 +261,7 @@ Hi there! 👋
         assert 'Action Items' in call_args
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_instructs_to_save_with_create_file(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should instruct AI to use create_file tool"""
@@ -279,7 +279,7 @@ Hi there! 👋
         assert 'summary.md' in call_args
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_calculates_cutoff_correctly(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should calculate cutoff byte position correctly"""
@@ -300,7 +300,7 @@ Hi there! 👋
         assert mock_chat_gpt.called
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_strips_metadata_from_old_summary(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should strip metadata when including old summary in prompt"""
@@ -330,7 +330,7 @@ This is the actual summary"""
         assert 'Real Summary Content' in call_args
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_handles_zero_cutoff(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should handle case where cutoff is 0 (first summary)"""
@@ -347,7 +347,7 @@ This is the actual summary"""
         assert 'extend' not in call_args.lower() or 'create' in call_args.lower()
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_uses_safe_vim_eval_for_config(self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env):
         """Should use safe_vim_eval to get configuration"""
@@ -366,7 +366,7 @@ This is the actual summary"""
         assert len(config_calls) > 0
 
     @patch('chatgpt.summary.chat_gpt')
-    @patch('chatgpt.summary.safe_vim_eval')
+    @patch('chatgpt.utils.safe_vim_eval')
     @patch('os.getcwd')
     def test_preserves_instruction_to_keep_existing_content(self, mock_getcwd, mock_safe_eval,
                                                             mock_chat_gpt, mock_env):

@@ -129,27 +129,27 @@ class TestValidateFilePath:
             assert 'Security' in error_msg
             assert '..' in error_msg
 
-    @patch('vim.eval')
-    def test_path_outside_project_requires_permission(self, mock_vim_eval, tmp_path):
+    @patch('chatgpt.tools.vim')
+    def test_path_outside_project_requires_permission(self, mock_vim, tmp_path):
         """Paths outside project should prompt for user permission"""
         with patch('os.getcwd', return_value=str(tmp_path)):
             outside_path = '/tmp/outside.txt'
 
             # User approves
-            mock_vim_eval.return_value = '1'
+            mock_vim.eval.return_value = '1'
             is_valid, error_msg = validate_file_path(outside_path)
             assert is_valid is True
             assert error_msg is None
-            assert mock_vim_eval.called
+            assert mock_vim.eval.called
 
-    @patch('vim.eval')
-    def test_path_outside_project_user_denies(self, mock_vim_eval, tmp_path):
+    @patch('chatgpt.tools.vim')
+    def test_path_outside_project_user_denies(self, mock_vim, tmp_path):
         """User can deny operations outside project"""
         with patch('os.getcwd', return_value=str(tmp_path)):
             outside_path = '/tmp/outside.txt'
 
             # User denies
-            mock_vim_eval.return_value = '2'
+            mock_vim.eval.return_value = '2'
             is_valid, error_msg = validate_file_path(outside_path)
             assert is_valid is False
             assert 'denied by user' in error_msg
@@ -280,29 +280,29 @@ class TestExecuteTool:
         assert 'Successfully created' in result
         assert test_file.exists()
 
-    @patch('vim.command')
-    @patch('vim.eval')
-    def test_open_file(self, mock_eval, mock_command, tmp_path):
+    @patch('chatgpt.tools.vim.command')
+    @patch('chatgpt.tools.vim')
+    def test_open_file(self, mock_vim, mock_command, tmp_path):
         """open_file should open file in Vim"""
         test_file = tmp_path / 'test.txt'
         test_file.write_text('content')
 
         # Mock Vim responses
-        mock_eval.side_effect = ['-1', 'gpt-persistent-session', '']
+        mock_vim.eval.side_effect = ['-1', 'gpt-persistent-session', '']
 
         result = execute_tool('open_file', {'file_path': str(test_file)})
 
         assert 'Opened file' in result
         assert mock_command.called
 
-    @patch('vim.command')
-    @patch('vim.eval')
-    def test_open_file_with_line_number(self, mock_eval, mock_command, tmp_path):
+    @patch('chatgpt.tools.vim.command')
+    @patch('chatgpt.tools.vim')
+    def test_open_file_with_line_number(self, mock_vim, mock_command, tmp_path):
         """open_file should jump to specified line number"""
         test_file = tmp_path / 'test.txt'
         test_file.write_text('line1\nline2\nline3')
 
-        mock_eval.side_effect = ['-1', 'gpt-persistent-session', '']
+        mock_vim.eval.side_effect = ['-1', 'gpt-persistent-session', '']
 
         result = execute_tool('open_file', {
             'file_path': str(test_file),

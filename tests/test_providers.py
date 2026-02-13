@@ -20,7 +20,7 @@ from chatgpt.providers import (
     GoogleProvider,
     OllamaProvider,
     OpenRouterProvider,
-    get_provider
+    create_provider
 )
 
 
@@ -29,12 +29,12 @@ class TestBaseProvider:
     
     def test_base_provider_instantiation(self):
         """Test that BaseProvider can be instantiated"""
-        provider = BaseProvider()
+        provider = BaseProvider({})
         assert provider is not None
     
     def test_base_provider_send_message_not_implemented(self):
         """Test that send_message raises NotImplementedError"""
-        provider = BaseProvider()
+        provider = BaseProvider({})
         with pytest.raises(NotImplementedError):
             provider.send_message([], {})
 
@@ -44,13 +44,13 @@ class TestOpenAIProvider:
     
     def test_openai_provider_init(self, mock_vim):
         """Test OpenAI provider initialization"""
-        provider = OpenAIProvider()
+        provider = OpenAIProvider({})
         assert provider.api_key is not None
         assert provider.base_url is not None
     
     def test_openai_send_message_success(self, mock_vim, mock_openai_response):
         """Test successful OpenAI API call"""
-        provider = OpenAIProvider()
+        provider = OpenAIProvider({})
         
         with patch('requests.post') as mock_post:
             mock_post.return_value.json.return_value = mock_openai_response
@@ -66,7 +66,7 @@ class TestOpenAIProvider:
     
     def test_openai_streaming(self, mock_vim, mock_streaming_response):
         """Test OpenAI streaming response"""
-        provider = OpenAIProvider()
+        provider = OpenAIProvider({})
         
         with patch('requests.post') as mock_post:
             mock_post.return_value = mock_streaming_response
@@ -81,7 +81,7 @@ class TestOpenAIProvider:
     
     def test_openai_with_tools(self, mock_vim, mock_openai_response):
         """Test OpenAI API call with tools"""
-        provider = OpenAIProvider()
+        provider = OpenAIProvider({})
         
         tools = [{
             "type": "function",
@@ -108,7 +108,7 @@ class TestOpenAIProvider:
     
     def test_openai_api_error(self, mock_vim):
         """Test OpenAI API error handling"""
-        provider = OpenAIProvider()
+        provider = OpenAIProvider({})
         
         with patch('requests.post') as mock_post:
             mock_post.side_effect = requests.exceptions.RequestException("API Error")
@@ -127,7 +127,7 @@ class TestOpenAIProvider:
             'g:chat_gpt_model': 'gpt-4'
         }.get(x, '')
         
-        provider = OpenAIProvider()
+        provider = OpenAIProvider({})
         assert 'azure' in provider.base_url.lower()
 
 
@@ -136,13 +136,13 @@ class TestAnthropicProvider:
     
     def test_anthropic_provider_init(self, mock_vim):
         """Test Anthropic provider initialization"""
-        provider = AnthropicProvider()
+        provider = AnthropicProvider({})
         assert provider.api_key is not None
         assert 'anthropic' in provider.base_url.lower()
     
     def test_anthropic_send_message(self, mock_vim, mock_anthropic_response):
         """Test Anthropic API call"""
-        provider = AnthropicProvider()
+        provider = AnthropicProvider({})
         
         with patch('requests.post') as mock_post:
             mock_post.return_value.json.return_value = mock_anthropic_response
@@ -162,7 +162,7 @@ class TestAnthropicProvider:
     
     def test_anthropic_with_system_message(self, mock_vim, mock_anthropic_response):
         """Test Anthropic with system message"""
-        provider = AnthropicProvider()
+        provider = AnthropicProvider({})
         
         with patch('requests.post') as mock_post:
             mock_post.return_value.json.return_value = mock_anthropic_response
@@ -184,7 +184,7 @@ class TestAnthropicProvider:
     
     def test_anthropic_streaming(self, mock_vim):
         """Test Anthropic streaming"""
-        provider = AnthropicProvider()
+        provider = AnthropicProvider({})
         
         with patch('requests.post') as mock_post:
             mock_response = Mock()
@@ -206,13 +206,13 @@ class TestGoogleProvider:
     
     def test_google_provider_init(self, mock_vim):
         """Test Google provider initialization"""
-        provider = GoogleProvider()
+        provider = GoogleProvider({})
         assert provider.api_key is not None
         assert 'generativelanguage' in provider.base_url
     
     def test_google_send_message(self, mock_vim):
         """Test Google Gemini API call"""
-        provider = GoogleProvider()
+        provider = GoogleProvider({})
         
         mock_response = {
             "candidates": [{
@@ -237,7 +237,7 @@ class TestGoogleProvider:
     
     def test_google_message_format_conversion(self, mock_vim):
         """Test conversion of messages to Gemini format"""
-        provider = GoogleProvider()
+        provider = GoogleProvider({})
         
         mock_response = {"candidates": [{"content": {"parts": [{"text": "Response"}]}}]}
         
@@ -264,12 +264,12 @@ class TestOllamaProvider:
     
     def test_ollama_provider_init(self, mock_vim):
         """Test Ollama provider initialization"""
-        provider = OllamaProvider()
+        provider = OllamaProvider({})
         assert 'localhost' in provider.base_url or '127.0.0.1' in provider.base_url
     
     def test_ollama_send_message(self, mock_vim):
         """Test Ollama API call"""
-        provider = OllamaProvider()
+        provider = OllamaProvider({})
         
         mock_response = {
             "message": {
@@ -296,7 +296,7 @@ class TestOllamaProvider:
             'g:ollama_host': 'http://custom-host:11434'
         }.get(x, '')
         
-        provider = OllamaProvider()
+        provider = OllamaProvider({})
         assert 'custom-host' in provider.base_url
 
 
@@ -305,12 +305,12 @@ class TestOpenRouterProvider:
     
     def test_openrouter_provider_init(self, mock_vim):
         """Test OpenRouter provider initialization"""
-        provider = OpenRouterProvider()
+        provider = OpenRouterProvider({})
         assert 'openrouter' in provider.base_url.lower()
     
     def test_openrouter_send_message(self, mock_vim, mock_openai_response):
         """Test OpenRouter API call"""
-        provider = OpenRouterProvider()
+        provider = OpenRouterProvider({})
         
         with patch('requests.post') as mock_post:
             mock_post.return_value.json.return_value = mock_openai_response
@@ -328,43 +328,39 @@ class TestOpenRouterProvider:
             assert 'headers' in call_args.kwargs
 
 
-class TestGetProvider:
-    """Tests for get_provider factory function"""
-    
-    def test_get_provider_openai(self, mock_vim):
-        """Test getting OpenAI provider"""
-        mock_vim.eval = lambda x: 'openai' if 'provider' in x else ''
-        provider = get_provider()
+class TestCreateProvider:
+    """Tests for create_provider factory function"""
+
+    def test_create_provider_openai(self, mock_vim):
+        """Test creating OpenAI provider"""
+        provider = create_provider('openai')
         assert isinstance(provider, OpenAIProvider)
-    
-    def test_get_provider_anthropic(self, mock_vim):
-        """Test getting Anthropic provider"""
-        mock_vim.eval = lambda x: 'anthropic' if 'provider' in x else ''
-        provider = get_provider()
+
+    def test_create_provider_anthropic(self, mock_vim):
+        """Test creating Anthropic provider"""
+        provider = create_provider('anthropic')
         assert isinstance(provider, AnthropicProvider)
-    
-    def test_get_provider_google(self, mock_vim):
-        """Test getting Google provider"""
-        mock_vim.eval = lambda x: 'google' if 'provider' in x else ''
-        provider = get_provider()
+
+    def test_create_provider_google(self, mock_vim):
+        """Test creating Google provider"""
+        provider = create_provider('gemini')
         assert isinstance(provider, GoogleProvider)
-    
-    def test_get_provider_ollama(self, mock_vim):
-        """Test getting Ollama provider"""
-        mock_vim.eval = lambda x: 'ollama' if 'provider' in x else ''
-        provider = get_provider()
+
+    def test_create_provider_ollama(self, mock_vim):
+        """Test creating Ollama provider"""
+        provider = create_provider('ollama')
         assert isinstance(provider, OllamaProvider)
-    
-    def test_get_provider_openrouter(self, mock_vim):
-        """Test getting OpenRouter provider"""
-        mock_vim.eval = lambda x: 'openrouter' if 'provider' in x else ''
-        provider = get_provider()
-        assert isinstance(provider, OpenRouterProvider)
-    
-    def test_get_provider_default(self, mock_vim):
-        """Test default provider (OpenAI)"""
-        mock_vim.eval = lambda x: ''
-        provider = get_provider()
+
+    def test_create_provider_openrouter(self, mock_vim):
+        """Test creating OpenRouter provider"""
+        # Mock the API key env var
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+            provider = create_provider('openrouter')
+            assert isinstance(provider, OpenRouterProvider)
+
+    def test_create_provider_unknown(self, mock_vim):
+        """Test unknown provider defaults to OpenAI"""
+        provider = create_provider('unknown_provider')
         assert isinstance(provider, OpenAIProvider)
 
 

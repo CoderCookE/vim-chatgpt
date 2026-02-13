@@ -28,18 +28,24 @@ class TestChatGPT:
     @pytest.fixture
     def mock_vim_env(self, mock_vim):
         """Set up Vim environment with default configuration"""
-        mock_vim.eval.side_effect = lambda x: {
-            'g:chat_gpt_max_tokens': '2000',
-            'g:chat_gpt_temperature': '0.7',
-            'g:chat_gpt_lang': 'None',
-            'exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0': '0',
-            'g:gpt_personas': "{'default': 'You are a helpful assistant'}",
-            'g:chat_persona': 'default',
-            'exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1': '1',
-            'exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1': '1',
-            'exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1': '1',
-            'g:chat_gpt_session_mode': '1',
-        }.get(x, '')
+        def vim_eval_side_effect(expr):
+            # Return dict object directly for g:gpt_personas
+            if expr == 'g:gpt_personas':
+                return {'default': 'You are a helpful assistant'}
+            # Return strings for everything else
+            return {
+                'g:chat_gpt_max_tokens': '2000',
+                'g:chat_gpt_temperature': '0.7',
+                'g:chat_gpt_lang': 'None',
+                'exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0': '0',
+                'g:chat_persona': 'default',
+                'exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1': '1',
+                'exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1': '1',
+                'exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1': '1',
+                'g:chat_gpt_session_mode': '1',
+            }.get(expr, '')
+        
+        mock_vim.eval.side_effect = vim_eval_side_effect
         return mock_vim
 
     @pytest.fixture
@@ -55,17 +61,21 @@ class TestChatGPT:
         ])
         return provider
 
+    @patch('chatgpt.core.vim')
     @patch('chatgpt.core.create_provider')
     @patch('chatgpt.core.safe_vim_eval')
     @patch('os.getcwd')
     def test_basic_chat_without_tools(self, mock_getcwd, mock_safe_eval, mock_create_provider,
-                                     mock_vim_env, mock_provider, tmp_path):
+                                     mock_vim, mock_vim_env, mock_provider, tmp_path):
         """Test basic chat flow without tool calling"""
         mock_getcwd.return_value = str(tmp_path)
         mock_safe_eval.side_effect = lambda x: {
             'g:chat_gpt_provider': 'openai',
             'g:chat_gpt_session_mode': '0'
         }.get(x, '0')
+
+        # Mock vim.eval for the values used in chat_gpt
+        mock_vim.eval.side_effect = lambda x: mock_vim_env.eval(x)
 
         mock_provider.supports_tools.return_value = False
         mock_create_provider.return_value = mock_provider
@@ -78,16 +88,20 @@ class TestChatGPT:
         # Verify stream_chat was called
         assert mock_provider.stream_chat.called
 
+    @patch('chatgpt.core.vim')
     @patch('chatgpt.core.create_provider')
     @patch('chatgpt.core.safe_vim_eval')
     @patch('os.getcwd')
     @patch('os.path.exists')
     def test_loads_project_context(self, mock_exists, mock_getcwd, mock_safe_eval,
-                                   mock_create_provider, mock_vim_env, mock_provider, tmp_path):
+                                   mock_create_provider, mock_vim, mock_vim_env, mock_provider, tmp_path):
         """Test that project context is loaded if available"""
         mock_getcwd.return_value = str(tmp_path)
         mock_safe_eval.return_value = 'openai'
         mock_create_provider.return_value = mock_provider
+
+        # Mock vim.eval for the values used in chat_gpt
+        mock_vim.eval.side_effect = lambda x: mock_vim_env.eval(x)
 
         # Create context file
         context_dir = tmp_path / '.vim-chatgpt'
@@ -105,16 +119,20 @@ class TestChatGPT:
         system_message = messages[0]
         assert 'Project Context' in system_message
 
+    @patch('chatgpt.core.vim')
     @patch('chatgpt.core.create_provider')
     @patch('chatgpt.core.safe_vim_eval')
     @patch('os.getcwd')
     @patch('os.path.exists')
     def test_loads_conversation_summary(self, mock_exists, mock_getcwd, mock_safe_eval,
-                                       mock_create_provider, mock_vim_env, mock_provider, tmp_path):
+                                       mock_create_provider, mock_vim, mock_vim_env, mock_provider, tmp_path):
         """Test that conversation summary is loaded if available"""
         mock_getcwd.return_value = str(tmp_path)
         mock_safe_eval.return_value = 'openai'
         mock_create_provider.return_value = mock_provider
+
+        # Mock vim.eval for the values used in chat_gpt
+        mock_vim.eval.side_effect = lambda x: mock_vim_env.eval(x)
 
         summary_content = """<!--SUMMARY_METADATA
 cutoff_byte: 1000
@@ -133,16 +151,20 @@ Previous conversation summary"""
         system_message = messages[0]
         assert 'Conversation Summary' in system_message
 
+    @patch('chatgpt.core.vim')
     @patch('chatgpt.core.create_provider')
     @patch('chatgpt.core.safe_vim_eval')
     @patch('chatgpt.core.get_tool_definitions')
     @patch('os.getcwd')
     def test_tools_enabled_when_supported(self, mock_getcwd, mock_get_tools, mock_safe_eval,
-                                         mock_create_provider, mock_vim_env, mock_provider, tmp_path):
+                                         mock_create_provider, mock_vim, mock_vim_env, mock_provider, tmp_path):
         """Test that tools are enabled when provider supports them"""
         mock_getcwd.return_value = str(tmp_path)
         mock_safe_eval.return_value = 'openai'
         mock_create_provider.return_value = mock_provider
+
+        # Mock vim.eval for the values used in chat_gpt
+        mock_vim.eval.side_effect = lambda x: mock_vim_env.eval(x)
 
         mock_tools = [{'name': 'test_tool', 'description': 'Test', 'parameters': {}}]
         mock_get_tools.return_value = mock_tools
@@ -157,13 +179,14 @@ Previous conversation summary"""
                            stream_call[1].get('tools') == mock_tools
         assert called_with_tools or mock_tools in str(stream_call)
 
+    @patch('chatgpt.core.vim')
     @patch('chatgpt.core.create_provider')
     @patch('chatgpt.core.safe_vim_eval')
     @patch('chatgpt.core.execute_tool')
     @patch('chatgpt.core.get_tool_definitions')
     @patch('os.getcwd')
     def test_tool_execution_loop(self, mock_getcwd, mock_get_tools, mock_execute_tool,
-                                mock_safe_eval, mock_create_provider, mock_vim_env, mock_provider, tmp_path):
+                                mock_safe_eval, mock_create_provider, mock_vim, mock_vim_env, mock_provider, tmp_path):
         """Test that tools are executed and results added to messages"""
         mock_getcwd.return_value = str(tmp_path)
         mock_safe_eval.side_effect = lambda x: {
@@ -189,15 +212,15 @@ Previous conversation summary"""
         ]
         mock_provider.create_messages.return_value = []
 
-        # Disable plan approval for this test
-        mock_vim_env.eval.side_effect = lambda x: {
+        # Mock vim.eval and disable plan approval for this test
+        mock_vim.eval.side_effect = lambda x: {
             'exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1': '0',
             'exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1': '1',
             'g:chat_gpt_max_tokens': '2000',
             'g:chat_gpt_temperature': '0.7',
             'g:chat_gpt_lang': 'None',
             'exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0': '0',
-            'g:gpt_personas': "{'default': 'You are a helpful assistant'}",
+            'g:gpt_personas': {'default': 'You are a helpful assistant'},
             'g:chat_persona': 'default',
         }.get(x, '0')
 
@@ -258,7 +281,7 @@ ESTIMATED STEPS: 2"""
             'g:chat_gpt_temperature': '0.7',
             'g:chat_gpt_lang': 'None',
             'exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0': '0',
-            'g:gpt_personas': "{'default': 'You are a helpful assistant'}",
+            'g:gpt_personas': {'default': 'You are a helpful assistant'},
             'g:chat_persona': 'default',
         }.get(x, '1')
 
@@ -391,7 +414,7 @@ Hi there!"""
             'g:chat_gpt_max_tokens': '2000',
             'g:chat_gpt_temperature': '0.7',
             'g:chat_gpt_lang': 'None',
-            'g:gpt_personas': "{'default': 'You are a helpful assistant'}",
+            'g:gpt_personas': {'default': 'You are a helpful assistant'},
             'g:chat_persona': 'default',
             'exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1': '0',
         }.get(x, '0')
@@ -450,7 +473,7 @@ Hi there!"""
             'g:chat_gpt_temperature': '0.7',
             'g:chat_gpt_lang': 'None',
             'exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0': '0',
-            'g:gpt_personas': "{'default': 'You are a helpful assistant'}",
+            'g:gpt_personas': {'default': 'You are a helpful assistant'},
             'g:chat_persona': 'default',
             'g:chat_gpt_session_mode': '0',
         }.get(x, '0')
