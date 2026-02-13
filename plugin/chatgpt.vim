@@ -371,6 +371,7 @@ function! DisplayChatGPTResponse(response, finish_reason, chat_gpt_session_id)
     " Force the window to update the scroll position
     execute "normal! \<C-E>\<C-Y>"
 
+    redraw
     " Stay in chat window to preserve scroll position
     " (Don't return to original window here - let caller handle it)
   endif
@@ -737,6 +738,10 @@ def get_tool_definitions():
                         "description": "How to open the file: 'current' (default), 'horizontal', or 'vertical'",
                         "enum": ["current", "horizontal", "vertical"],
                         "default": "current"
+                    },
+                    "line_number": {
+                        "type": "integer",
+                        "description": "Optional: Line number to jump to after opening the file (1-indexed)"
                     }
                 },
                 "required": ["file_path"]
