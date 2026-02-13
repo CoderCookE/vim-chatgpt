@@ -930,8 +930,105 @@ def get_tool_definitions():
 def execute_tool(tool_name, arguments):
     """Execute a tool with given arguments"""
     import subprocess
+    import re
 
-    # Log tool execution start
+    def validate_file_path(file_path, operation="file operation"):
+        """
+        Validate file paths for security.
+        Prevents path traversal attacks and requires explicit user permission for
+        operations outside the project directory.
+
+        Args:
+            file_path: The file path to validate
+            operation: Description of the operation (for error messages)
+
+        Returns:
+            tuple: (is_valid: bool, error_message: str or None)
+        """
+        try:
+            # Get current working directory (project root)
+            cwd = os.getcwd()
+
+            # Resolve to absolute path
+            abs_path = os.path.abspath(file_path)
+
+            # Get the real path (resolves symlinks)
+            try:
+                real_path = os.path.realpath(abs_path)
+            except (OSError, ValueError):
+                # If realpath fails, use abspath
+                real_path = abs_path
+
+            # Blocked patterns - sensitive system paths (always deny, no prompt)
+            blocked_patterns = [
+                r'^/etc/',
+                r'^/sys/',
+                r'^/proc/',
+                r'^/dev/',
+                r'^/root/',
+                r'^/boot/',
+                r'^/bin/',
+                r'^/sbin/',
+                r'^/lib',
+                r'^/usr/bin/',
+                r'^/usr/sbin/',
+                r'^/usr/lib',
+                r'^C:\\Windows\\',
+                r'^C:\\Program Files',
+                r'^/System/',
+                r'^/Library/System',
+            ]
+
+            for pattern in blocked_patterns:
+                if re.match(pattern, real_path, re.IGNORECASE):
+                    return (False, f"Security: {operation} denied. Cannot modify system path: {file_path}")
+
+            # Check for suspicious path components (always deny)
+            path_parts = os.path.normpath(file_path).split(os.sep)
+            if '..' in path_parts:
+                return (False, f"Security: {operation} denied. Path contains '..' traversal: {file_path}")
+
+            # Check if path is within current working directory
+            # Use os.path.commonpath to ensure it's truly a subdirectory
+            is_within_project = False
+            try:
+                common = os.path.commonpath([cwd, real_path])
+                is_within_project = (common == cwd)
+            except ValueError:
+                # Paths are on different drives (Windows) or one is relative
+                is_within_project = False
+
+            # If within project directory, allow without prompting
+            if is_within_project:
+                return (True, None)
+
+            # Outside project directory - require user permission
+            # Use Vim's confirm() function to prompt the user
+            try:
+                prompt_msg = f"AI wants to {operation}:\\n{file_path}\\n\\nThis is OUTSIDE the project directory ({cwd}).\\n\\nAllow this operation?"
+                # Escape special characters for Vim string
+                prompt_msg_escaped = prompt_msg.replace("'", "''")
+                
+                # Call Vim's confirm() function
+                # Returns: 1=Yes, 2=No
+                result = int(vim.eval(f"confirm('{prompt_msg_escaped}', '&Yes\\n&No', 2)"))
+                
+                if result == 1:
+                    # User approved
+                    debug_log(f"INFO: User approved {operation} outside project: {file_path}")
+                    return (True, None)
+                else:
+                    # User denied
+                    debug_log(f"WARNING: User denied {operation} outside project: {file_path}")
+                    return (False, f"Security: {operation} denied by user. Path '{file_path}' is outside project directory.")
+            except Exception as e:
+                # If we can't prompt (e.g., in non-interactive mode), deny by default
+                debug_log(f"ERROR: Failed to prompt user for permission: {str(e)}")
+                return (False, f"Security: {operation} denied. Path '{file_path}' is outside project directory and user confirmation failed.")
+
+        except Exception as e:
+            return (False, f"Security: Error validating path: {str(e)}")
+
     debug_log(f"INFO: Executing tool: {tool_name}")
     debug_log(f"DEBUG: Tool arguments: {arguments}")
 
@@ -1074,7 +1171,12 @@ def execute_tool(tool_name, arguments):
         elif tool_name == "create_file":
             file_path = arguments.get("file_path")
             content = arguments.get("content", "")
-            overwrite = arguments.get("overwrite", False)
+            
+            # Validate file path for security
+            # Validate file path for security
+            is_valid, error_msg = validate_file_path(file_path, "create file")
+            if not is_valid:
+                return error_msg
 
             try:
                 # Check if file exists
@@ -1144,6 +1246,32 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 # Get absolute path for comparison
                 abs_file_path = os.path.abspath(file_path)
 
+                # Check if file is already open in a buffer
+                file_bufnr = vim.eval(f"bufnr('{abs_file_path}')")
+
+                # Check if buffer exists and is visible in a window
+                if file_bufnr != '-1':
+                    # Buffer exists - check if it's visible in a window
+                    winnr = vim.eval(f"bufwinnr({file_bufnr})")
+                    if winnr != '-1':
+                        # File is already visible - switch to that window
+                        vim.command(f"{winnr}wincmd w")
+
+                        # Jump to specific line if requested
+                        if line_number is not None:
+                            try:
+                                if line_number < 1:
+                                    return f"Switched to existing window with {file_path}\nWarning: Invalid line number {line_number}, must be >= 1"
+                                vim.command(f"call cursor({line_number}, 1)")
+                                vim.command("normal! zz")
+                                vim.command("redraw")
+                                return f"Switched to existing window with {file_path} at line {line_number}"
+                            except vim.error as e:
+                                return f"Switched to existing window with {file_path}\nWarning: Could not jump to line {line_number}: {str(e)}"
+
+                        return f"Switched to existing window with {file_path}"
+
+                # File is not currently visible - proceed with normal open logic
                 # Check current buffer
                 current_buffer = vim.eval("bufname('%')")
                 current_file = vim.eval("expand('%:p')") if current_buffer else ""
@@ -1197,7 +1325,11 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
         elif tool_name == "edit_file":
             file_path = arguments.get("file_path")
             old_content = arguments.get("old_content")
-            new_content = arguments.get("new_content")
+            
+            # Validate file path for security
+            is_valid, error_msg = validate_file_path(file_path, "edit file")
+            if not is_valid:
+                return error_msg
 
             try:
                 # Read the file
@@ -1231,7 +1363,11 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
         elif tool_name == "edit_file_lines":
             file_path = arguments.get("file_path")
             start_line = arguments.get("start_line")
-            end_line = arguments.get("end_line")
+            
+            # Validate file path for security
+            is_valid, error_msg = validate_file_path(file_path, "edit file")
+            if not is_valid:
+                return error_msg
             new_content = arguments.get("new_content")
 
             try:
@@ -1633,7 +1769,8 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 info_parts.append(f"Error running git commit: {str(e)}")
                 return "\n".join(info_parts)
 
-
+        else:
+            # Unknown tool
             result = f"Unknown tool: {tool_name}"
             debug_log(f"ERROR: Unknown tool requested: {tool_name}")
             return result
@@ -1896,6 +2033,20 @@ class AnthropicProvider(BaseProvider):
         """Stream chat completion from Anthropic"""
         import sys
 
+        # Validate messages format
+        if not isinstance(messages, dict):
+            raise ValueError(f"messages must be a dict, got {type(messages)}")
+        if 'system' not in messages:
+            raise ValueError("messages dict must have 'system' key")
+        if 'messages' not in messages:
+            raise ValueError("messages dict must have 'messages' key")
+        if not isinstance(messages['messages'], list):
+            raise ValueError(f"messages['messages'] must be a list, got {type(messages['messages'])}")
+        if len(messages['messages']) == 0:
+            raise ValueError("messages['messages'] cannot be empty")
+
+        debug_log(f"DEBUG: Anthropic stream_chat called with {len(messages['messages'])} messages")
+
         headers = {
             'x-api-key': self.config['api_key'],
             'anthropic-version': '2023-06-01',
@@ -1921,11 +2072,16 @@ class AnthropicProvider(BaseProvider):
             debug_log(f"WARNING: No tools being sent to Anthropic API")
 
         # Construct URL - ensure we have /v1/messages endpoint
-        base_url = self.config['base_url'].rstrip('/')
+        base_url = self.config.get('base_url')
+        if not base_url:
+            raise ValueError("base_url is required for Anthropic provider")
+        base_url = base_url.rstrip('/')
         # Add /v1 if not already present
         if not base_url.endswith('/v1'):
             base_url = f"{base_url}/v1"
         url = f"{base_url}/messages"
+
+        debug_log(f"DEBUG: Making request to Anthropic API: {url}")
 
         response = requests.post(
             url,
@@ -2257,11 +2413,16 @@ def create_provider(provider_name):
     """Factory function to create the appropriate provider"""
 
     if provider_name == 'anthropic':
+        base_url = os.getenv('ANTHROPIC_BASE_URL') or safe_vim_eval('g:anthropic_base_url')
+        if not base_url:
+            # Fallback to default if not set
+            base_url = 'https://api.anthropic.com/v1'
         config = {
             'api_key': os.getenv('ANTHROPIC_API_KEY') or safe_vim_eval('g:anthropic_api_key'),
-            'model': safe_vim_eval('g:anthropic_model'),
-            'base_url': os.getenv('ANTHROPIC_BASE_URL') or safe_vim_eval('g:anthropic_base_url')
+            'model': safe_vim_eval('g:anthropic_model') or 'claude-sonnet-4-5-20250929',
+            'base_url': base_url
         }
+        debug_log(f"DEBUG: Creating Anthropic provider with base_url={base_url}")
         return AnthropicProvider(config)
 
     elif provider_name == 'gemini':
@@ -2498,7 +2659,7 @@ def chat_gpt(prompt):
   # Stream response using provider (with tool calling loop)
   try:
     chunk_session_id = session_id if session_id else 'gpt-response'
-    max_tool_iterations = 15  # Maximum total iterations
+    max_tool_iterations = 25  # Maximum total iterations
     tool_iteration = 0
     plan_approved = not require_plan_approval  # Skip approval if not required
     accumulated_content = ""  # Accumulate content for each iteration
@@ -2772,19 +2933,31 @@ def chat_gpt(prompt):
         if isinstance(messages, dict) and 'messages' in messages:
           tool_result_content = []
           for tool_id, tool_name, tool_args, tool_result in tool_results:
+            # Ensure tool_result is never None
+            if tool_result is None:
+              tool_result = "Error: Tool returned None"
+              debug_log(f"WARNING: Tool {tool_name} returned None, using error placeholder")
+
             tool_result_content.append({
               "type": "tool_result",
               "tool_use_id": tool_id,
-              "content": tool_result
+              "content": str(tool_result)  # Ensure it's always a string
             })
 
-          messages['messages'].append({
-            "role": "user",
-            "content": tool_result_content
-          })
+          if tool_result_content:  # Only append if we have results
+            messages['messages'].append({
+              "role": "user",
+              "content": tool_result_content
+            })
+          else:
+            debug_log("WARNING: No tool results to add to messages")
 
   except Exception as e:
+    import traceback
+    error_details = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+    debug_log(f"ERROR: Full traceback:\n{error_details}")
     print(f"Error streaming from {provider_name}: {str(e)}")
+    print(f"See /tmp/vim-chatgpt-debug.log for full error details")
 
 chat_gpt(vim.eval('a:prompt'))
 EOF
