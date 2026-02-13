@@ -1,0 +1,5 @@
+# Project-specific generated files
+.vim-chatgpt/
+
+# Claude Code local settings
+.claude/settings.local.json
