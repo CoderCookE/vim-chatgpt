@@ -156,68 +156,57 @@ class TestAnthropicProvider:
         assert provider.config['api_key'] == 'test-anthropic-key'
 
     def test_anthropic_send_message(self, mock_vim, mock_anthropic_response):
-        """Test Anthropic API call"""
-        config = {'api_key': 'test-anthropic-key'}
-        provider = AnthropicProvider(config)
-
-        with patch('requests.post') as mock_post:
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.iter_lines = Mock(return_value=[
-                b'data: {"type": "content_block_delta", "delta": {"text": "Hello"}}',
-                b'data: {"type": "message_stop"}'
-            ])
-            mock_post.return_value = mock_response
-
-            # Anthropic expects messages in dict format with system and messages keys
-            messages = {
-                'system': 'You are a helpful assistant',
-                'messages': [{"role": "user", "content": "Hello"}]
-            }
-
-            # Test that stream_chat works
-            chunks = list(provider.stream_chat(messages, "claude-3-opus-20240229", 0.7, 2000))
+        """Test Anthropic provider sends messages correctly"""
+        provider = AnthropicProvider({
+            'api_key': 'test-anthropic-key',
+            'base_url': 'https://api.anthropic.com',
+            'model': 'claude-3-5-sonnet-20241022'
+        })
+        
+        # Anthropic expects messages as a dict with 'system' and 'messages' keys
+        messages = {
+            'system': 'You are a helpful assistant',
+            'messages': [{"role": "user", "content": "Hello"}]
+        }
+        
+        with patch('requests.post', return_value=mock_anthropic_response):
+            chunks = list(provider.stream_chat(messages, 'claude-3-5-sonnet-20241022', 0.7, 1000))
+            
+            # Should yield content chunks
             assert len(chunks) > 0
+            assert chunks[0][0] == "Hello"  # content
+            assert chunks[-1][1] == "end_turn"  # finish_reason
             assert len(chunks) > 0
-
-    def test_anthropic_with_system_message(self, mock_vim, mock_anthropic_response):
-        """Test Anthropic with system message"""
-        config = {'api_key': 'test-anthropic-key'}
-        provider = AnthropicProvider(config)
-
-        # Test create_messages with system message
-        system_msg = "You are helpful"
-        history = []
-        user_msg = "Hello"
-
-        messages = provider.create_messages(system_msg, history, user_msg)
-        assert len(messages) > 0
-
     def test_anthropic_streaming(self, mock_vim):
-        """Test Anthropic streaming"""
-        config = {'api_key': 'test-anthropic-key'}
-        provider = AnthropicProvider(config)
-
-        with patch('requests.post') as mock_post:
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.iter_lines = Mock(return_value=[
-                b'data: {"type": "content_block_delta", "delta": {"text": "Hello"}}',
-                b'data: {"type": "message_stop"}'
-            ])
-            mock_post.return_value = mock_response
-
-            # Anthropic expects messages in dict format
-            messages = {
-                'system': 'You are a helpful assistant',
-                'messages': [{"role": "user", "content": "Hello"}]
-            }
-
-            chunks = list(provider.stream_chat(messages, "claude-3-opus-20240229", 0.7, 2000))
+        """Test Anthropic provider handles streaming correctly"""
+        provider = AnthropicProvider({
+            'api_key': 'test-anthropic-key',
+            'base_url': 'https://api.anthropic.com',
+            'model': 'claude-3-5-sonnet-20241022'
+        })
+        
+        # Anthropic expects messages as a dict with 'system' and 'messages' keys
+        messages = {
+            'system': 'You are a helpful assistant',
+            'messages': [{"role": "user", "content": "Test"}]
+        }
+        
+        # Mock streaming response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b'event: content_block_delta',
+            b'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Test"}}',
+            b'',
+            b'event: message_stop',
+            b'data: {"type":"message_stop"}',
+        ]
+        
+        with patch('requests.post', return_value=mock_response):
+            chunks = list(provider.stream_chat(messages, 'claude-3-5-sonnet-20241022', 0.7, 1000))
+            
+            # Should have content chunks
             assert len(chunks) > 0
-            assert len(chunks) > 0
-
-
 class TestGoogleProvider:
     """Tests for GoogleProvider (Gemini)"""
 

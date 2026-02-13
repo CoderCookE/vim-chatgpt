@@ -34,6 +34,7 @@ class TestChatGPT:
                 return {'default': 'You are a helpful assistant'}
             # Return strings for everything else
             defaults = {
+                'g:chat_gpt_provider': 'openai',
                 'g:chat_gpt_max_tokens': '2000',
                 'g:chat_gpt_temperature': '0.7',
                 'g:chat_gpt_lang': 'None',
