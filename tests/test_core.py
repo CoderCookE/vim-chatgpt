@@ -33,7 +33,7 @@ class TestChatGPT:
             if expr == 'g:gpt_personas':
                 return {'default': 'You are a helpful assistant'}
             # Return strings for everything else
-            return {
+            defaults = {
                 'g:chat_gpt_max_tokens': '2000',
                 'g:chat_gpt_temperature': '0.7',
                 'g:chat_gpt_lang': 'None',
@@ -43,8 +43,12 @@ class TestChatGPT:
                 'exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1': '1',
                 'exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1': '1',
                 'g:chat_gpt_session_mode': '1',
-            }.get(expr, '')
-        
+            }
+            # Return default value or '0' for unknown expressions
+            return defaults.get(expr, '0')
+
+        mock_vim.eval.side_effect = vim_eval_side_effect
+        return mock_vim
         mock_vim.eval.side_effect = vim_eval_side_effect
         return mock_vim
 

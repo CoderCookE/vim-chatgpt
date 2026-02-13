@@ -118,6 +118,7 @@ class TestValidateFilePath:
             for path in blocked_paths:
                 is_valid, error_msg = validate_file_path(path)
                 assert is_valid is False
+                assert 'Cannot modify system path' in error_msg
                 assert 'Security' in error_msg
                 assert 'system path' in error_msg
 

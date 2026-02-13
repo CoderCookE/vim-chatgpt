@@ -169,10 +169,15 @@ class TestAnthropicProvider:
             ])
             mock_post.return_value = mock_response
 
-            messages = [{"role": "user", "content": "Hello"}]
+            # Anthropic expects messages in dict format with system and messages keys
+            messages = {
+                'system': 'You are a helpful assistant',
+                'messages': [{"role": "user", "content": "Hello"}]
+            }
 
             # Test that stream_chat works
             chunks = list(provider.stream_chat(messages, "claude-3-opus-20240229", 0.7, 2000))
+            assert len(chunks) > 0
             assert len(chunks) > 0
 
     def test_anthropic_with_system_message(self, mock_vim, mock_anthropic_response):
@@ -202,9 +207,14 @@ class TestAnthropicProvider:
             ])
             mock_post.return_value = mock_response
 
-            messages = [{"role": "user", "content": "Hello"}]
+            # Anthropic expects messages in dict format
+            messages = {
+                'system': 'You are a helpful assistant',
+                'messages': [{"role": "user", "content": "Hello"}]
+            }
 
             chunks = list(provider.stream_chat(messages, "claude-3-opus-20240229", 0.7, 2000))
+            assert len(chunks) > 0
             assert len(chunks) > 0
 
 
@@ -222,25 +232,28 @@ class TestGoogleProvider:
         config = {'api_key': 'test-google-key'}
         provider = GoogleProvider(config)
 
-        mock_response = {
-            "candidates": [{
-                "content": {
-                    "parts": [{"text": "Hello from Gemini"}],
-                    "role": "model"
-                },
-                "finishReason": "STOP"
-            }]
-        }
-
         with patch('requests.post') as mock_post:
             mock_response_obj = Mock()
             mock_response_obj.status_code = 200
-            mock_response_obj.iter_lines = Mock(return_value=[
-                b'data: {"candidates": [{"content": {"parts": [{"text": "Hello"}]}}]}'
-            ])
+            # Gemini returns JSON in response.text, not streaming
+            mock_response_obj.text = json.dumps([{
+                "candidates": [{
+                    "content": {
+                        "parts": [{"text": "Hello from Gemini"}],
+                        "role": "model"
+                    },
+                    "finishReason": "STOP"
+                }]
+            }])
             mock_post.return_value = mock_response_obj
 
-            messages = [{"role": "user", "content": "Hello"}]
+            # Google expects messages in dict format with system_instruction and contents
+            messages = {
+                'system_instruction': {'parts': [{'text': 'You are a helpful assistant'}]},
+                'contents': [
+                    {'role': 'user', 'parts': [{'text': 'Hello'}]}
+                ]
+            }
 
             chunks = list(provider.stream_chat(messages, "gemini-pro", 0.7, 2000))
             assert len(chunks) >= 0  # May be empty if no valid chunks
@@ -329,8 +342,10 @@ class TestCreateProvider:
 
     def test_create_provider_openrouter(self, mock_vim):
         """Test creating OpenRouter provider"""
-        provider = create_provider('openrouter')
-        assert isinstance(provider, OpenRouterProvider)
+        # Mock environment variable to provide API key
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-openrouter-key'}):
+            provider = create_provider('openrouter')
+            assert isinstance(provider, OpenRouterProvider)
 
     def test_create_provider_unknown(self, mock_vim):
         """Test unknown provider defaults to OpenAI"""
