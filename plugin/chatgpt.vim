@@ -17,16 +17,9 @@ function! s:check_and_generate_context()
         endif
     endif
 
-    " Use directory of the file being edited, or current directory if no file
-    let current_file = expand('%:p')
-    if empty(current_file) || !filereadable(current_file)
-        " No file being edited, use current working directory
-        let project_dir = getcwd()
-    else
-        " Get directory of the file being edited
-        let project_dir = expand('%:p:h')
-    endif
-
+    " Always use current working directory as project root
+    " (assuming user opened vim from the project root)
+    let project_dir = getcwd()
 
     let home = expand('~')
 
@@ -108,15 +101,9 @@ endfunction
 
 " Function to check if summary needs updating based on history size
 function! s:check_and_update_summary()
-    " Use directory of the file being edited, or current directory if no file
-    let current_file = expand('%:p')
-    if empty(current_file) || !filereadable(current_file)
-        " No file being edited, use current working directory
-        let project_dir = getcwd()
-    else
-        " Get directory of the file being edited
-        let project_dir = expand('%:p:h')
-    endif
+    " Always use current working directory as project root
+    " (assuming user opened vim from the project root)
+    let project_dir = getcwd()
 
     let home = expand('~')
 
@@ -149,6 +136,7 @@ function! s:check_and_update_summary()
     " 2. OR summary doesn't exist yet and history has content
     if new_content_size > compaction_size
         echo "Conversation grew by " . float2nr(new_content_size / 1024) . "KB. Compacting into summary..."
+        echo "Reading summary from: " . summary_file . " (cutoff_byte: " . cutoff_byte . ")"
 
         " Save current settings and directory
         let save_cwd = getcwd()
@@ -432,6 +420,102 @@ def save_to_history(content):
         pass
 
 
+# Formatting helpers for better chat display
+def format_box(title, content="", width=60):
+    """Create a formatted box with title and optional content"""
+    top = "╔" + "═" * (width - 2) + "╗"
+    bottom = "╚" + "═" * (width - 2) + "╝"
+    
+    lines = [top]
+    
+    # Add title
+    if title:
+        title_padded = f" {title} ".center(width - 2, " ")
+        lines.append(f"║{title_padded}║")
+        if content:
+            lines.append("║" + " " * (width - 2) + "║")
+    
+    # Add content
+    if content:
+        for line in content.split('\n'):
+            # Wrap long lines
+            while len(line) > width - 6:
+                lines.append(f"║  {line[:width-6]}  ║")
+                line = line[width-6:]
+            if line:
+                line_padded = f"  {line}".ljust(width - 2)
+                lines.append(f"║{line_padded}║")
+    
+    lines.append(bottom)
+    return "\n".join(lines)
+
+
+def format_separator(char="─", width=60):
+    """Create a horizontal separator"""
+    return char * width
+
+
+def format_tool_call(tool_name, tool_args, status="executing"):
+    """Format a tool call with status indicator"""
+    if status == "executing":
+        icon = "🔧"
+        status_text = "Executing"
+    elif status == "success":
+        icon = "✓"
+        status_text = "Success"
+    elif status == "error":
+        icon = "✗"
+        status_text = "Error"
+    else:
+        icon = "→"
+        status_text = status
+    
+    # Format arguments nicely
+    args_str = ", ".join(f"{k}={repr(v)[:40]}" for k, v in tool_args.items())
+    if len(args_str) > 60:
+        args_str = args_str[:57] + "..."
+    
+    return f"{icon} {status_text}: {tool_name}({args_str})"
+
+
+def format_tool_result(tool_name, tool_args, result, max_lines=20):
+    """Format tool execution result with header"""
+    header = format_separator("─", 60)
+    tool_call_str = format_tool_call(tool_name, tool_args, "success")
+    
+    # Truncate long results
+    result_lines = result.split('\n')
+    if len(result_lines) > max_lines:
+        result_lines = result_lines[:max_lines]
+        result_lines.append(f"... (truncated, {len(result.split(chr(10))) - max_lines} more lines)")
+    
+    result_formatted = '\n'.join(f"  {line}" for line in result_lines)
+    
+    return f"\n{header}\n{tool_call_str}\n\nOutput:\n{result_formatted}\n{header}\n"
+
+
+def format_plan_display(plan_type, explanation, tool_calls):
+    """Format plan approval display with nice boxes"""
+    title = f"{plan_type} FOR APPROVAL"
+    
+    # Build content
+    content_parts = []
+    
+    if explanation and explanation.strip():
+        content_parts.append("Explanation:")
+        content_parts.append(explanation.strip())
+        content_parts.append("")
+    
+    content_parts.append("Tools to execute:")
+    for i, tc in enumerate(tool_calls, 1):
+        args_str = ", ".join(f"{k}={repr(v)[:30]}" for k, v in tc['arguments'].items())
+        content_parts.append(f"  {i}. {tc['name']}({args_str})")
+    
+    content = "\n".join(content_parts)
+    
+    return "\n\n" + format_box(title, content, width=70) + "\n"
+
+
 # Tools framework for function calling
 def get_tool_definitions():
     """Define available tools for AI agents"""
@@ -618,7 +702,7 @@ def get_tool_definitions():
         },
         {
             "name": "git_status",
-            "description": "Get the current git repository status. Shows working tree status including staged, unstaged, and untracked files.",
+            "description": "Get the current git repository status. Shows working tree status including staged, unstaged, and untracked files. Also includes recent commit history for context.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -1077,6 +1161,9 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
         # Git-specific tools
         elif tool_name == "git_status":
             try:
+                info_parts = []
+
+                # Get git status
                 result = subprocess.run(
                     ["git", "status"],
                     capture_output=True,
@@ -1085,9 +1172,27 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     cwd=os.getcwd()
                 )
                 if result.returncode == 0:
-                    return result.stdout
+                    info_parts.append("=== Git Status ===")
+                    info_parts.append(result.stdout)
                 else:
                     return f"Git error: {result.stderr}"
+
+                # Also include recent commit log for context
+                try:
+                    log_result = subprocess.run(
+                        ["git", "log", "-5", "--oneline"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        cwd=os.getcwd()
+                    )
+                    if log_result.returncode == 0:
+                        info_parts.append("\n=== Recent Commits ===")
+                        info_parts.append(log_result.stdout)
+                except Exception:
+                    pass  # Silently skip if log fails
+
+                return "\n".join(info_parts)
             except Exception as e:
                 return f"Error running git status: {str(e)}"
 
@@ -1096,6 +1201,24 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
             file_path = arguments.get("file_path")
 
             try:
+                info_parts = []
+
+                # Include git status for context
+                try:
+                    status_result = subprocess.run(
+                        ["git", "status", "-s"],  # Short format
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        cwd=os.getcwd()
+                    )
+                    if status_result.returncode == 0:
+                        info_parts.append("=== Git Status (short) ===")
+                        info_parts.append(status_result.stdout if status_result.stdout.strip() else "No changes")
+                except Exception:
+                    pass  # Silently skip if status fails
+
+                # Get the diff
                 cmd = ["git", "diff"]
                 if staged:
                     cmd.append("--cached")
@@ -1111,10 +1234,14 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 )
 
                 if result.returncode == 0:
+                    diff_type = "Staged Changes" if staged else "Unstaged Changes"
+                    file_info = f" ({file_path})" if file_path else ""
+                    info_parts.append(f"\n=== {diff_type}{file_info} ===")
                     if result.stdout.strip():
-                        return result.stdout
+                        info_parts.append(result.stdout)
                     else:
-                        return "No changes found."
+                        info_parts.append("No changes found.")
+                    return "\n".join(info_parts)
                 else:
                     return f"Git error: {result.stderr}"
             except Exception as e:
@@ -1197,6 +1324,9 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 return "Error: No files specified to add."
 
             try:
+                info_parts = []
+
+                # Run git add
                 cmd = ["git", "add"] + files
                 result = subprocess.run(
                     cmd,
@@ -1208,7 +1338,24 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
 
                 if result.returncode == 0:
                     files_str = ", ".join(files)
-                    return f"Successfully staged: {files_str}"
+                    info_parts.append(f"Successfully staged: {files_str}")
+
+                    # Show updated status after adding
+                    try:
+                        status_result = subprocess.run(
+                            ["git", "status", "-s"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                            cwd=os.getcwd()
+                        )
+                        if status_result.returncode == 0:
+                            info_parts.append("\n=== Updated Status ===")
+                            info_parts.append(status_result.stdout if status_result.stdout.strip() else "No changes")
+                    except Exception:
+                        pass  # Silently skip if status fails
+
+                    return "\n".join(info_parts)
                 else:
                     return f"Git error: {result.stderr}"
             except Exception as e:
@@ -1248,6 +1395,58 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
             if not message and not amend:
                 return "Error: Commit message is required."
 
+            # First, automatically gather git status and diff information
+            info_parts = []
+
+            # Run git status
+            try:
+                status_result = subprocess.run(
+                    ["git", "status"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=os.getcwd()
+                )
+                if status_result.returncode == 0:
+                    info_parts.append("=== Git Status ===")
+                    info_parts.append(status_result.stdout)
+            except Exception as e:
+                info_parts.append(f"Warning: Could not get git status: {str(e)}")
+
+            # Run git diff --cached to show what will be committed
+            try:
+                diff_result = subprocess.run(
+                    ["git", "diff", "--cached"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=os.getcwd()
+                )
+                if diff_result.returncode == 0 and diff_result.stdout.strip():
+                    info_parts.append("\n=== Staged Changes (will be committed) ===")
+                    info_parts.append(diff_result.stdout)
+                elif diff_result.returncode == 0:
+                    info_parts.append("\n=== Staged Changes ===")
+                    info_parts.append("No staged changes found.")
+            except Exception as e:
+                info_parts.append(f"\nWarning: Could not get staged changes: {str(e)}")
+
+            # Run git log to show recent commits
+            try:
+                log_result = subprocess.run(
+                    ["git", "log", "-5", "--oneline"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=os.getcwd()
+                )
+                if log_result.returncode == 0:
+                    info_parts.append("\n=== Recent Commits ===")
+                    info_parts.append(log_result.stdout)
+            except Exception as e:
+                info_parts.append(f"\nWarning: Could not get recent commits: {str(e)}")
+
+            # Now attempt the commit
             try:
                 cmd = ["git", "commit"]
                 if amend:
@@ -1264,18 +1463,26 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 )
 
                 if result.returncode == 0:
-                    return f"Commit successful:\n{result.stdout}"
+                    info_parts.append("\n=== Commit Result ===")
+                    info_parts.append(f"Commit successful:\n{result.stdout}")
+                    return "\n".join(info_parts)
                 else:
                     # Check for common errors
                     stderr = result.stderr
                     if "nothing to commit" in stderr:
-                        return "Error: No changes staged for commit. Use git_add first."
+                        info_parts.append("\n=== Commit Result ===")
+                        info_parts.append("Error: No changes staged for commit. Use git_add first.")
                     elif "no changes added to commit" in stderr:
-                        return "Error: No changes staged for commit. Use git_add first."
+                        info_parts.append("\n=== Commit Result ===")
+                        info_parts.append("Error: No changes staged for commit. Use git_add first.")
                     else:
-                        return f"Git error: {stderr}"
+                        info_parts.append("\n=== Commit Result ===")
+                        info_parts.append(f"Git error: {stderr}")
+                    return "\n".join(info_parts)
             except Exception as e:
-                return f"Error running git commit: {str(e)}"
+                info_parts.append("\n=== Commit Result ===")
+                info_parts.append(f"Error running git commit: {str(e)}")
+                return "\n".join(info_parts)
 
 
             return f"Unknown tool: {tool_name}"
@@ -2046,21 +2253,21 @@ def chat_gpt(prompt):
               "content": message
           })
 
-      # Always include last 4 messages (to maintain conversation context even after compaction)
+      # Always include last 3 messages (to maintain conversation context even after compaction)
       # Note: parsed_messages is in reverse chronological order (newest first) due to the reverse() above
-      min_messages = 4
+      min_messages = 3
       if len(parsed_messages) >= min_messages:
-        # Take first 4 messages (newest 4)
+        # Take first 3 messages (newest 3)
         history = parsed_messages[:min_messages]
         history.reverse()  # Reverse to chronological order (oldest first) for API
         remaining_messages = parsed_messages[min_messages:]  # Older messages
       else:
-        # Take all messages if less than 4
+        # Take all messages if less than 3
         history = parsed_messages[:]
         history.reverse()  # Reverse to chronological order (oldest first) for API
         remaining_messages = []
 
-      # Calculate remaining token budget after including last 4 messages
+      # Calculate remaining token budget after including last 3 messages
       token_count = token_limits.get(model, 100000) - max_tokens - len(prompt) - len(system_message)
       for msg in history:
         token_count -= len(msg['content'])
@@ -2141,20 +2348,12 @@ def chat_gpt(prompt):
       # Request approval for initial or revised plans
       if needs_approval:
         # Show a separator and the plan
+        # Use formatted plan display
         plan_type = "REVISED PLAN" if is_revised_plan else "INITIAL PLAN"
-        plan_display = "\n\n" + "="*60 + "\n"
-        plan_display += f"{plan_type} FOR APPROVAL:\n"
-        plan_display += "="*60 + "\n"
+        plan_display = format_plan_display(plan_type, accumulated_content.strip(), tool_calls_to_process)
 
-        # Show AI's explanation if provided
-        if accumulated_content.strip():
-          plan_display += accumulated_content.strip() + "\n"
-
-        # Always show the actual tools that will be called
-        plan_display += "\nTools to execute:\n"
-        for i, tc in enumerate(tool_calls_to_process, 1):
-          plan_display += f"  {i}. {tc['name']}({', '.join(f'{k}={repr(v)[:50]}' for k, v in tc['arguments'].items())})\n"
-
+        if not suppress_display:
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
         plan_display += "\n" + "="*60 + "\n\n"
 
         if not suppress_display:
@@ -2171,20 +2370,23 @@ def chat_gpt(prompt):
 
         if approval.lower() not in ['y', 'yes']:
           if not suppress_display:
-            vim.command("call DisplayChatGPTResponse('\n\n[Plan cancelled by user]\n', '', '{0}')".format(chunk_session_id))
-            vim.command("redraw")
+            cancel_msg = "\n\n" + format_box("PLAN CANCELLED", "User declined to approve the plan.", width=60) + "\n"
+            vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(cancel_msg.replace("'", "''"), chunk_session_id))
           break
 
         plan_approved = True
         if not suppress_display:
-          approval_msg = "[Revised plan approved. Continuing...]" if is_revised_plan else "[Plan approved. Executing...]"
-          vim.command("call DisplayChatGPTResponse('\n\n{0}\n', '', '{1}')".format(approval_msg, chunk_session_id))
-          vim.command("redraw")
+          # Format approval message with icon
+          approval_text = "Revised plan approved. Proceeding with execution..." if is_revised_plan else "Plan approved. Executing tools..."
+          approval_msg = f"\n\n✓ {approval_text}\n"
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
 
       # Execute tools and add results to messages
       tool_iteration += 1
       if not suppress_display:
-        vim.command("call DisplayChatGPTResponse('\n\n[Using tools... (iteration {0})]\n', '', '{1}')".format(tool_iteration, chunk_session_id))
+        # Display iteration header with formatting
+        iteration_msg = "\n\n" + format_separator("═", 70) + f"\n🔧 Tool Execution - Iteration {tool_iteration}\n" + format_separator("═", 70) + "\n"
+        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(iteration_msg.replace("'", "''"), chunk_session_id))
         vim.command("redraw")
 
       # For Anthropic, we need to add the assistant message with ALL tool_use blocks first
@@ -2219,8 +2421,9 @@ def chat_gpt(prompt):
         tool_results.append((tool_id, tool_name, tool_args, tool_result))
 
         # Display tool usage in session
+        # Display tool usage with formatting
         if not suppress_display:
-          tool_display = f"\n[Tool: {tool_name}({json.dumps(tool_args)})]:\n{tool_result}\n"
+          tool_display = format_tool_result(tool_name, tool_args, tool_result, max_lines=15)
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
           vim.command("redraw")
 
@@ -2336,17 +2539,18 @@ endfunction
 " Function to generate a commit message using git integration
 function! GenerateCommitMessage()
   " Create a prompt that instructs the AI to use git tools
-  let prompt = 'Please help me create a git commit message. Use the git tools to:'
-  let prompt .= "\n\n1. Run git_status to see the current state"
-  let prompt .= "\n2. Run git_diff with staged=true to see staged changes (if any)"
-  let prompt .= "\n3. Run git_diff with staged=false to see unstaged changes (if no staged changes)"
-  let prompt .= "\n4. Run git_log with max_count=5 to see recent commit history for context"
-  let prompt .= "\n\nBased on the changes, propose a helpful commit message following conventional commit format:"
-  let prompt .= "\n- Start with a type (feat/fix/docs/style/refactor/test/chore)"
-  let prompt .= "\n- Include a short, descriptive title"
-  let prompt .= "\n- Optionally include a body with more details"
-  let prompt .= "\n\nAfter I approve the commit message, use git_commit to create the commit."
-  let prompt .= "\n\nIf there are no staged changes, ask if I want to stage all changes first using git_add."
+  let prompt = 'Please help me create a git commit message.'
+  let prompt .= "\n\nFirst, use git_status to understand the repository state and recent commits."
+  let prompt .= "\nThen, use git_diff with staged=true to see staged changes, or staged=false if nothing is staged."
+  let prompt .= "\n\nBased on the changes, draft a commit message following this format:"
+  let prompt .= "\n- Type: feat/fix/docs/style/refactor/test/chore"
+  let prompt .= "\n- Short descriptive title (50 chars or less)"
+  let prompt .= "\n- Optional body with more details if needed"
+  let prompt .= "\n- Match the style of recent commits in this repository"
+  let prompt .= "\n\nShow me the proposed commit message and ask for approval."
+  let prompt .= "\nOnce approved, use git_commit with the message parameter to create the commit."
+  let prompt .= "\n\nNote: The git tools automatically provide context (status, diffs, recent commits) so you don't need to call them separately."
+  let prompt .= "\n\nIf there are no staged changes, ask if I want to stage all modified files first using git_add."
 
   " Call ChatGPT with session mode and plan approval enabled
   " This allows the AI to use tools and get user approval
@@ -2402,6 +2606,7 @@ function! GenerateConversationSummary()
   let project_dir = getcwd()
   let history_file = project_dir . '/.vim-chatgpt/history.txt'
   let summary_file = project_dir . '/.vim-chatgpt/summary.md'
+  let temp_chunks_dir = project_dir . '/.vim-chatgpt/temp_chunks'
 
   let old_cutoff = s:get_summary_cutoff(project_dir)
   let history_size = getfsize(history_file)
@@ -2414,21 +2619,85 @@ function! GenerateConversationSummary()
     let old_summary = join(readfile(summary_file), "\n")
   endif
 
+  " Maximum chunk size to process at once (in bytes)
+  " Roughly 50KB of conversation = ~12-15K tokens, leaving room for summary and prompt
+  let max_chunk_size = 51200
+
+  " Maximum total bytes to summarize in one compaction (200KB = ~4 chunks max)
+  " If there's a huge backlog, we skip old content and only summarize recent
+  let max_compaction_total = 204800
+
+  " Calculate how much new content needs to be summarized
+  let bytes_to_summarize = new_cutoff - old_cutoff
+
+  " Cap the amount to avoid processing too many chunks at once
+  if bytes_to_summarize > max_compaction_total
+    echo "Large backlog detected (" . float2nr(bytes_to_summarize / 1024) . "KB new content)."
+    echo "Summarizing most recent " . float2nr(max_compaction_total / 1024) . "KB only..."
+    " Move old_cutoff forward to only summarize recent content
+    let old_cutoff = new_cutoff - max_compaction_total
+    let bytes_to_summarize = max_compaction_total
+  endif
+
   " Read the new conversation portion from history
   let new_conversation = ""
   if filereadable(history_file)
-    " Read from old_cutoff to new_cutoff
     let all_history = join(readfile(history_file, 'b'), "\n")
-    let bytes_to_read = new_cutoff - old_cutoff
-    if bytes_to_read > 0
-      let new_conversation = strpart(all_history, old_cutoff, bytes_to_read)
+
+    " If the amount to summarize is larger than max_chunk_size, chunk it
+    if bytes_to_summarize > max_chunk_size
+      " Process in chunks, creating intermediate summaries
+      let chunk_count = float2nr(ceil(bytes_to_summarize * 1.0 / max_chunk_size))
+
+      echo "Large history detected. Processing " . chunk_count . " chunks..."
+
+      " Create temp directory for chunk summaries
+      if !isdirectory(temp_chunks_dir)
+        call mkdir(temp_chunks_dir, 'p')
+      endif
+
+      " Process each chunk and save intermediate summaries
+      for chunk_idx in range(chunk_count)
+        let chunk_start = old_cutoff + (chunk_idx * max_chunk_size)
+        let chunk_end = min([chunk_start + max_chunk_size, new_cutoff])
+        let chunk_size = chunk_end - chunk_start
+
+        if chunk_size <= 0
+          break
+        endif
+
+        let chunk_conversation = strpart(all_history, chunk_start, chunk_size)
+
+        " Process this chunk and save to temp file
+        call s:ProcessSummaryChunk(chunk_conversation, chunk_idx + 1, chunk_count, temp_chunks_dir)
+
+        " Small delay between chunks to avoid rate limiting
+        if chunk_idx < chunk_count - 1
+          sleep 1
+        endif
+      endfor
+
+      " Now merge all chunk summaries with the old summary into one concise summary
+      echo "Merging all summaries into one concise summary..."
+      call s:MergeChunkSummaries(old_summary, temp_chunks_dir, chunk_count)
+
+      " Clean up temp directory
+      call delete(temp_chunks_dir, 'rf')
+
+      echo "\nConversation summary generated at .vim-chatgpt/summary.md (processed in " . chunk_count . " chunks)"
+      return
     else
-      " First summary - read everything up to new_cutoff
-      let new_conversation = strpart(all_history, 0, new_cutoff)
+      " Small enough to process in one go
+      if bytes_to_summarize > 0
+        let new_conversation = strpart(all_history, old_cutoff, bytes_to_summarize)
+      else
+        " First summary - read everything up to new_cutoff
+        let new_conversation = strpart(all_history, 0, new_cutoff)
+      endif
     endif
   endif
 
-  " Create a prompt with the actual content
+  " Create a prompt with the actual content (single chunk case)
   let prompt = ""
 
   if old_cutoff > 0 && !empty(old_summary)
@@ -2481,6 +2750,113 @@ function! GenerateConversationSummary()
 
   echo "\nConversation summary generated at .vim-chatgpt/summary.md"
   echo "You can edit this file to add or modify preferences."
+endfunction
+
+" Helper function to process a single chunk of conversation history
+" Saves the chunk summary to a temp file instead of the final summary
+function! s:ProcessSummaryChunk(chunk_conversation, chunk_num, total_chunks, temp_dir)
+  let prompt = ""
+
+  let prompt .= "Here is chunk " . a:chunk_num . " of " . a:total_chunks . " of conversation history:\n\n"
+  let prompt .= "```\n" . a:chunk_conversation . "\n```\n\n"
+  let prompt .= "Please create a summary of this conversation chunk. Focus on key topics, decisions, and important information."
+  let prompt .= "\n\nGenerate a summary using this format:"
+  let prompt .= "\n\n# Chunk " . a:chunk_num . " Summary"
+  let prompt .= "\n\n## Key Topics"
+  let prompt .= "\n[Bullet points of main topics discussed]"
+  let prompt .= "\n\n## Important Details"
+  let prompt .= "\n[Critical information to remember]"
+  let prompt .= "\n\n## User Preferences"
+  let prompt .= "\n[Any preferences or conventions mentioned]"
+  let prompt .= "\n\n## Action Items"
+  let prompt .= "\n[Tasks or future work mentioned]"
+
+  " Save to a temp file for this chunk
+  let chunk_file = a:temp_dir . '/chunk_' . a:chunk_num . '.md'
+  let prompt .= "\n\nSave this chunk summary to " . chunk_file . " using the create_file tool with overwrite=true."
+
+  " Use session mode 0 for one-time response, disable plan approval and suppress display
+  let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+  let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+  let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+  let g:chat_gpt_session_mode = 0
+  let g:chat_gpt_require_plan_approval = 0
+  let g:chat_gpt_suppress_display = 1
+
+  echo "Processing chunk " . a:chunk_num . " of " . a:total_chunks . "..."
+  call ChatGPT(prompt)
+
+  " Restore settings
+  let g:chat_gpt_session_mode = save_session_mode
+  let g:chat_gpt_require_plan_approval = save_plan_approval
+  let g:chat_gpt_suppress_display = save_suppress_display
+endfunction
+
+" Helper function to merge all chunk summaries into one concise final summary
+function! s:MergeChunkSummaries(old_summary, temp_dir, chunk_count)
+  " Collect all chunk summaries
+  let all_chunk_summaries = ""
+  for chunk_idx in range(1, a:chunk_count)
+    let chunk_file = a:temp_dir . '/chunk_' . chunk_idx . '.md'
+    if filereadable(chunk_file)
+      let chunk_content = join(readfile(chunk_file), "\n")
+      let all_chunk_summaries .= "\n\n" . chunk_content
+    endif
+  endfor
+
+  " Strip old metadata from existing summary if present
+  let old_summary_content = substitute(a:old_summary, '^<!--\_.\{-}-->\n\+', '', '')
+
+  let prompt = ""
+
+  if !empty(old_summary_content)
+    let prompt .= "Here is the existing conversation summary:\n\n"
+    let prompt .= "```markdown\n" . old_summary_content . "\n```\n\n"
+  endif
+
+  let prompt .= "Here are " . a:chunk_count . " intermediate summaries from recent conversation chunks:\n\n"
+  let prompt .= "```markdown" . all_chunk_summaries . "\n```\n\n"
+  let prompt .= "Please merge these summaries into ONE CONCISE final summary."
+  let prompt .= "\n\nIMPORTANT:"
+  let prompt .= "\n- Consolidate duplicate or overlapping information"
+  let prompt .= "\n- Remove redundancy across chunks"
+  let prompt .= "\n- Keep only the most important details"
+  let prompt .= "\n- Maintain chronological context where relevant"
+  let prompt .= "\n- The final summary should be clear and concise"
+
+  if !empty(old_summary_content)
+    let prompt .= "\n- Integrate new information with existing summary without duplicating"
+  endif
+
+  let prompt .= "\n\nGenerate ONE consolidated summary using this format:"
+  let prompt .= "\n\n# Conversation Summary"
+  let prompt .= "\n\n## Key Topics Discussed"
+  let prompt .= "\n[Consolidated bullet points of all main topics]"
+  let prompt .= "\n\n## Important Information to Remember"
+  let prompt .= "\n[All critical details merged and deduplicated]"
+  let prompt .= "\n\n## User Preferences"
+  let prompt .= "\n- Coding style preferences"
+  let prompt .= "\n- Tool or technology preferences"
+  let prompt .= "\n- Communication preferences"
+  let prompt .= "\n- Project-specific conventions"
+  let prompt .= "\n\n## Action Items"
+  let prompt .= "\n[All pending tasks merged]"
+  let prompt .= "\n\nSave this consolidated summary to .vim-chatgpt/summary.md using the create_file tool with overwrite=true."
+
+  " Use session mode 0 for one-time response, disable plan approval and suppress display
+  let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+  let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+  let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+  let g:chat_gpt_session_mode = 0
+  let g:chat_gpt_require_plan_approval = 0
+  let g:chat_gpt_suppress_display = 1
+
+  call ChatGPT(prompt)
+
+  " Restore settings
+  let g:chat_gpt_session_mode = save_session_mode
+  let g:chat_gpt_require_plan_approval = save_plan_approval
+  let g:chat_gpt_suppress_display = save_suppress_display
 endfunction
 
 " Menu for ChatGPT
