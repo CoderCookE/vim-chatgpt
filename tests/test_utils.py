@@ -42,15 +42,19 @@ class TestDebugLog:
     @patch('builtins.open', new_callable=mock_open)
     def test_debug_log_enabled(self, mock_file, mock_vim):
         """Test that debug_log writes when enabled"""
-        # Set log level to 2 (INFO and above)
+        # Set log level to 2 (WARNING and above)
+        # Log level 0 = disabled, 1 = DEBUG+, 2 = INFO+, 3 = WARNING+, 4 = ERROR only
         mock_vim.eval.return_value = '2'
 
-        debug_log("INFO: Test message")
+        debug_log("WARNING: Test message")
 
-        mock_file.assert_called_once()
+        # Check that open was called with the log file
+        mock_file.assert_called_once_with('/tmp/vim-chatgpt-debug.log', 'a')
         handle = mock_file()
+        # Check that write was called
+        assert handle.write.called
         written_content = ''.join(call.args[0] for call in handle.write.call_args_list)
-        assert 'INFO' in written_content
+        assert 'WARNING' in written_content
         assert 'Test message' in written_content
 
     @patch('chatgpt.utils.vim')
