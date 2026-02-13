@@ -140,23 +140,25 @@ def mock_openai_response():
 @pytest.fixture
 def mock_anthropic_response():
     """Mock Anthropic API response"""
-    return {
-        "id": "msg_123",
-        "type": "message",
-        "role": "assistant",
-        "content": [
-            {
-                "type": "text",
-                "text": "This is a test response"
-            }
-        ],
-        "model": "claude-3-opus-20240229",
-        "stop_reason": "end_turn",
-        "usage": {
-            "input_tokens": 10,
-            "output_tokens": 20
-        }
-    }
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.iter_lines.return_value = [
+        b'event: content_block_start',
+        b'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+        b'',
+        b'event: content_block_delta',
+        b'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}',
+        b'',
+        b'event: content_block_stop',
+        b'data: {"type":"content_block_stop","index":0}',
+        b'',
+        b'event: message_delta',
+        b'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}',
+        b'',
+        b'event: message_stop',
+        b'data: {"type":"message_stop"}',
+    ]
+    return mock_response
 
 
 @pytest.fixture

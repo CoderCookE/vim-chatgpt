@@ -7,7 +7,7 @@ Tests utility functions including logging, formatting, and history management.
 import pytest
 import os
 import tempfile
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, MagicMock, patch, mock_open
 from datetime import datetime
 
 # Import the module under test
@@ -38,14 +38,15 @@ class TestDebugLog:
             debug_log("Test message")
             mock_file.assert_not_called()
 
-    @patch('chatgpt.utils.vim')
     def test_debug_log_enabled(self):
         """Test that debug_log writes when enabled"""
-        with patch('chatgpt.utils.vim') as mock_vim:
-            with patch('builtins.open', mock_open()) as mock_file:
-                # Set log level to 2 (INFO and above)
-                mock_vim.eval.return_value = '2'
+        # Need to patch vim at the module level since debug_log imports it locally
+        import sys
+        mock_vim = MagicMock()
+        mock_vim.eval.return_value = '2'  # Set log level to 2
 
+        with patch.dict('sys.modules', {'vim': mock_vim}):
+            with patch('builtins.open', mock_open()) as mock_file:
                 debug_log("WARNING: Test message")
 
                 # Check that open was called with the log file
@@ -58,6 +59,13 @@ class TestDebugLog:
                 written_content = ''.join(call.args[0] for call in handle.write.call_args_list)
                 assert 'WARNING' in written_content
                 assert 'Test message' in written_content
+
+    @patch('chatgpt.utils.vim')
+    def test_debug_log_with_exception(self, mock_vim):
+        """Test that debug_log handles exceptions gracefully"""
+        mock_vim.eval.side_effect = Exception("Vim error")
+
+        # Should not raise exception
         debug_log("Test message")
 
 

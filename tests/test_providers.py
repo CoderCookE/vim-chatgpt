@@ -176,6 +176,7 @@ class TestAnthropicProvider:
             assert len(chunks) > 0
             assert chunks[0][0] == "Hello"  # content
             assert chunks[-1][1] == "end_turn"  # finish_reason
+
             assert len(chunks) > 0
     def test_anthropic_streaming(self, mock_vim):
         """Test Anthropic provider handles streaming correctly"""

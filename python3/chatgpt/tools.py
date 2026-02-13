@@ -362,6 +362,7 @@ def validate_file_path(file_path, operation="file operation"):
         # Blocked patterns - sensitive system paths (always deny, no prompt)
         blocked_patterns = [
             r'^/etc/',
+            r'^/private/etc/',  # macOS: /etc is symlink to /private/etc
             r'^/sys/',
             r'^/proc/',
             r'^/dev/',
