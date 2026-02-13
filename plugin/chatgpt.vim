@@ -228,7 +228,7 @@ endif
 
 " Conversation history compaction settings
 if !exists("g:chat_gpt_summary_compaction_size")
-  let g:chat_gpt_summary_compaction_size = 102400  " 50KB - trigger summary update
+  let g:chat_gpt_summary_compaction_size = 76800  " 76KB - trigger summary update
 endif
 
 if !exists("g:chat_gpt_recent_history_size")
@@ -376,6 +376,12 @@ endfunction
 
 " Function to interact with ChatGPT
 function! ChatGPT(prompt) abort
+  " Ensure suppress_display is off for normal chat operations
+  " (It gets set to 1 only during automatic context/summary generation)
+  if !exists('g:chat_gpt_suppress_display')
+    let g:chat_gpt_suppress_display = 0
+  endif
+
   python3 << EOF
 
 import sys
@@ -395,6 +401,18 @@ def safe_vim_eval(expression):
         return vim.eval(expression)
     except vim.error:
         return None
+
+
+def debug_log(msg):
+    """Write debug messages to /tmp/vim-chatgpt-debug.log"""
+    try:
+        with open('/tmp/vim-chatgpt-debug.log', 'a') as f:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+            f.write(f"[{timestamp}] {msg}\n")
+            f.flush()
+    except:
+        pass
 
 
 def save_to_history(content):
@@ -1739,6 +1757,8 @@ class AnthropicProvider(BaseProvider):
 
     def stream_chat(self, messages, model, temperature, max_tokens, tools=None):
         """Stream chat completion from Anthropic"""
+        import sys
+
         headers = {
             'x-api-key': self.config['api_key'],
             'anthropic-version': '2023-06-01',
@@ -1756,7 +1776,11 @@ class AnthropicProvider(BaseProvider):
 
         # Add tools if provided
         if tools:
-            payload['tools'] = self.format_tools_for_api(tools)
+            formatted = self.format_tools_for_api(tools)
+            payload['tools'] = formatted
+            debug_log(f"INFO: Anthropic API call with {len(formatted)} tools")
+        else:
+            debug_log(f"WARNING: Anthropic API call with NO tools")
 
         # Construct URL - ensure we have /v1/messages endpoint
         base_url = self.config['base_url'].rstrip('/')
@@ -1797,6 +1821,10 @@ class AnthropicProvider(BaseProvider):
                 chunk = json.loads(data)
                 chunk_type = chunk.get('type')
 
+                # Log all chunk types except common ones to reduce noise
+                if chunk_type not in ['ping', 'content_block_delta']:
+                    debug_log(f"ANTHROPIC: Received chunk type: {chunk_type}")
+
                 # Handle text content
                 if chunk_type == 'content_block_delta':
                     delta = chunk.get('delta', {})
@@ -1821,25 +1849,37 @@ class AnthropicProvider(BaseProvider):
                             'name': block.get('name', ''),
                             'input': ''
                         }
+                        debug_log(f"ANTHROPIC: Tool use started - name: {block.get('name', '')}, id: {block.get('id', '')}")
 
                 # Handle message end
                 elif chunk_type == 'message_delta':
+                    debug_log(f"ANTHROPIC: message_delta event: {chunk}")
                     finish_reason = chunk.get('delta', {}).get('stop_reason', '')
                     if finish_reason:
+                        debug_log(f"ANTHROPIC: Finishing with reason: {finish_reason}, tool_use_blocks: {tool_use_blocks}")
                         # Convert accumulated tool blocks to tool_calls
                         tool_calls = None
                         if tool_use_blocks:
                             tool_calls = []
                             for tool_data in tool_use_blocks.values():
                                 try:
+                                    # Handle empty input (tools with no parameters)
+                                    tool_input = tool_data['input'].strip()
+                                    if not tool_input:
+                                        arguments = {}
+                                    else:
+                                        arguments = json.loads(tool_input)
+
                                     tool_calls.append({
                                         'id': tool_data['id'],
                                         'name': tool_data['name'],
-                                        'arguments': json.loads(tool_data['input'])
+                                        'arguments': arguments
                                     })
-                                except json.JSONDecodeError:
-                                    pass  # Skip malformed tool calls
-                        yield ('', 'stop', tool_calls)
+                                    debug_log(f"ANTHROPIC: Successfully parsed tool call: {tool_data['name']} with args: {arguments}")
+                                except json.JSONDecodeError as e:
+                                    debug_log(f"ANTHROPIC: JSON decode error for tool input: {e}, input was: {tool_data.get('input', '')[:200]}")
+                        debug_log(f"ANTHROPIC: Yielding finish with tool_calls: {tool_calls}")
+                        yield ('', finish_reason, tool_calls)
             except json.JSONDecodeError:
                 continue
 
@@ -2132,6 +2172,14 @@ def create_provider(provider_name):
 
 
 def chat_gpt(prompt):
+  import sys
+
+  try:
+    debug_log(f"INFO: chat_gpt called with prompt length: {len(prompt)}")
+    debug_log(f"INFO: Prompt preview: {repr(prompt[:200])}")
+  except Exception as e:
+    debug_log(f"INFO: chat_gpt called (error printing prompt: {e})")
+
   token_limits = {
     "gpt-3.5-turbo": 4097,
     "gpt-3.5-turbo-16k": 16385,
@@ -2208,8 +2256,12 @@ def chat_gpt(prompt):
   enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
   require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
 
-  if enable_tools and require_plan_approval and provider.supports_tools():
-    system_message += "\n\nWhen you need to use tools, first create a clear, step-by-step plan explaining what you will do and which tools you'll use. Present this plan to the user for approval before proceeding with tool execution.\n\nAfter each tool execution, evaluate the results:\n- If the result is unexpected or requires a different approach, explain why and present a REVISED PLAN for approval\n- If the result is as expected, continue with the next step\n- If the task is complete, summarize what was accomplished\n\nStart any revised plan with '=== REVISED PLAN ===' so it can be clearly identified.\n"
+  if enable_tools and provider.supports_tools():
+    # Add tool usage instructions
+    system_message += "\n\n## CRITICAL: Tool Usage Rules\n\nYou have tools for file operations and git commands. You MUST use these tools - do not just talk about using them.\n\nWhen the user asks you to:\n- 'run git status', 'check git status', 'what changed' → IMMEDIATELY call git_status\n- 'run git log', 'show commits', 'commit history' → IMMEDIATELY call git_log\n- 'run git diff', 'show changes', 'what's different' → IMMEDIATELY call git_diff\n- 'list files', 'show directory' → IMMEDIATELY call list_directory\n- 'read file X', 'show file X' → IMMEDIATELY call read_file\n- Any other git/file operation → IMMEDIATELY call the appropriate tool\n\nDO NOT respond with text like 'I will help you...' or 'Let me check...'. Instead, IMMEDIATELY use the tool by including it in your response.\n"
+
+    if require_plan_approval:
+      system_message += "\n## Plan Approval Process\n\nBefore executing tools, you must present a plan:\n1. Immediately identify which tools you will use\n2. Create a brief explanation of your plan\n3. List the specific tool calls you will make (with exact tool names and parameters)\n4. Wait for user approval with your tool_use blocks ready\n5. After approval, execute the tools\n\nIMPORTANT: The plan must include the actual tool_use blocks, not just descriptions. When you create a plan, you are making the tool calls - the user just needs to approve them first.\n\nAfter each tool execution:\n- If the result requires a different approach, present a REVISED PLAN for approval (start with '=== REVISED PLAN ===')\n- If the result is as expected, continue with the next step\n- If complete, summarize what was accomplished\n"
 
   # Session history management
   history = []
@@ -2304,6 +2356,9 @@ def chat_gpt(prompt):
   enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
   if enable_tools and provider.supports_tools():
     tools = get_tool_definitions()
+    debug_log(f"INFO: Loaded {len(tools)} tools for this session")
+  else:
+    debug_log(f"WARNING: Tools not enabled - enable_tools={enable_tools}, supports_tools={provider.supports_tools()}")
 
   # Stream response using provider (with tool calling loop)
   try:
@@ -2317,7 +2372,13 @@ def chat_gpt(prompt):
       tool_calls_to_process = None
       accumulated_content = ""  # Reset for each iteration
 
+      debug_log(f"INFO: Starting streaming iteration {tool_iteration + 1}")
+
+      chunk_count = 0
       for content, finish_reason, tool_calls in provider.stream_chat(messages, model, temperature, max_tokens, tools):
+        chunk_count += 1
+        if chunk_count <= 5:  # Log first 5 chunks only to avoid spam
+          debug_log(f"CHUNK {chunk_count}: content={repr(content[:100]) if content else None}, finish={finish_reason}, tools={tool_calls}")
         # Display content as it streams
         if content:
           # Accumulate content to detect plan revisions
@@ -2329,15 +2390,25 @@ def chat_gpt(prompt):
 
         # Handle finish
         if finish_reason:
+          debug_log(f"INFO: Received finish_reason: {finish_reason}, tool_calls object: {tool_calls}, content_length: {len(accumulated_content)}")
           if tool_calls:
             tool_calls_to_process = tool_calls
+            debug_log(f"INFO: Will process {len(tool_calls)} tool calls: {tool_calls}")
           else:
+            debug_log(f"INFO: No tool calls (tool_calls is: {repr(tool_calls)})")
             if not suppress_display:
               vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
               vim.command("redraw")
 
+      debug_log(f"INFO: Streaming completed. Received {chunk_count} chunks total")
+
       # If no tool calls, we're done
       if not tool_calls_to_process:
+        debug_log(f"INFO: No tool calls received from model. Accumulated content length: {len(accumulated_content)}")
+        if accumulated_content:
+          debug_log(f"INFO: Model response preview: {accumulated_content[:300]}")
+        else:
+          debug_log(f"WARNING: Model returned empty response with no tool calls!")
         break
 
       # Detect revised plan or initial plan
@@ -2351,9 +2422,6 @@ def chat_gpt(prompt):
         # Use formatted plan display
         plan_type = "REVISED PLAN" if is_revised_plan else "INITIAL PLAN"
         plan_display = format_plan_display(plan_type, accumulated_content.strip(), tool_calls_to_process)
-
-        if not suppress_display:
-          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
         plan_display += "\n" + "="*60 + "\n\n"
 
         if not suppress_display:
@@ -2417,15 +2485,26 @@ def chat_gpt(prompt):
         tool_id = tool_call.get('id', 'unknown')
 
         # Execute the tool
+        debug_log(f"INFO: Executing tool: {tool_name} with args: {tool_args}")
         tool_result = execute_tool(tool_name, tool_args)
+        debug_log(f"INFO: Tool {tool_name} returned {len(tool_result)} chars: {tool_result[:200]}")
         tool_results.append((tool_id, tool_name, tool_args, tool_result))
 
         # Display tool usage in session
         # Display tool usage with formatting
+        debug_log(f"INFO: suppress_display={suppress_display}, about to display tool result")
         if not suppress_display:
+          debug_log(f"INFO: Formatting and displaying tool result for {tool_name}")
           tool_display = format_tool_result(tool_name, tool_args, tool_result, max_lines=15)
-          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(tool_display.replace("'", "''"), chunk_session_id))
+          debug_log(f"INFO: Formatted tool display length: {len(tool_display)}")
+          # Escape for VimScript by doubling single quotes
+          escaped_display = tool_display.replace("'", "''")
+          debug_log(f"INFO: Calling Vim DisplayChatGPTResponse for tool result")
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(escaped_display, chunk_session_id))
           vim.command("redraw")
+          debug_log(f"INFO: Tool result displayed successfully")
+        else:
+          debug_log(f"WARNING: Tool result NOT displayed because suppress_display=True")
 
       # Add tool results to messages - format depends on provider
       if provider_name == 'openai':
@@ -2540,17 +2619,18 @@ endfunction
 function! GenerateCommitMessage()
   " Create a prompt that instructs the AI to use git tools
   let prompt = 'Please help me create a git commit message.'
-  let prompt .= "\n\nFirst, use git_status to understand the repository state and recent commits."
-  let prompt .= "\nThen, use git_diff with staged=true to see staged changes, or staged=false if nothing is staged."
-  let prompt .= "\n\nBased on the changes, draft a commit message following this format:"
-  let prompt .= "\n- Type: feat/fix/docs/style/refactor/test/chore"
-  let prompt .= "\n- Short descriptive title (50 chars or less)"
-  let prompt .= "\n- Optional body with more details if needed"
-  let prompt .= "\n- Match the style of recent commits in this repository"
-  let prompt .= "\n\nShow me the proposed commit message and ask for approval."
-  let prompt .= "\nOnce approved, use git_commit with the message parameter to create the commit."
-  let prompt .= "\n\nNote: The git tools automatically provide context (status, diffs, recent commits) so you don't need to call them separately."
-  let prompt .= "\n\nIf there are no staged changes, ask if I want to stage all modified files first using git_add."
+  let prompt .= "\n\nYou MUST follow these steps:"
+  let prompt .= "\n1. FIRST: Call git_status to check the repository state"
+  let prompt .= "\n2. THEN: Call git_diff with staged=true (or staged=false if nothing is staged)"
+  let prompt .= "\n3. Based on the actual changes, draft a commit message following this format:"
+  let prompt .= "\n   - Type: feat/fix/docs/style/refactor/test/chore"
+  let prompt .= "\n   - Short descriptive title (50 chars or less)"
+  let prompt .= "\n   - Optional body with more details if needed"
+  let prompt .= "\n   - Match the style of recent commits shown in git_status"
+  let prompt .= "\n4. Show me the proposed commit message and ask for approval"
+  let prompt .= "\n5. Once approved, call git_commit with the message"
+  let prompt .= "\n\nIMPORTANT: If there are no staged changes, ask if I want to stage files first using git_add."
+  let prompt .= "\n\nDo NOT just describe what you would do - actually CALL the tools now!"
 
   " Call ChatGPT with session mode and plan approval enabled
   " This allows the AI to use tools and get user approval
@@ -2642,8 +2722,6 @@ function! GenerateConversationSummary()
   " Read the new conversation portion from history
   let new_conversation = ""
   if filereadable(history_file)
-    let all_history = join(readfile(history_file, 'b'), "\n")
-
     " If the amount to summarize is larger than max_chunk_size, chunk it
     if bytes_to_summarize > max_chunk_size
       " Process in chunks, creating intermediate summaries
@@ -2666,7 +2744,29 @@ function! GenerateConversationSummary()
           break
         endif
 
-        let chunk_conversation = strpart(all_history, chunk_start, chunk_size)
+        " Use Python to safely extract chunk without splitting UTF-8 characters
+        python3 << EOF
+import vim
+
+history_file = vim.eval('history_file')
+chunk_start = int(vim.eval('chunk_start'))
+chunk_end = int(vim.eval('chunk_end'))
+
+try:
+    with open(history_file, 'rb') as f:
+        # Seek to start position
+        f.seek(chunk_start)
+        # Read the chunk
+        chunk_bytes = f.read(chunk_end - chunk_start)
+        # Decode with error handling for potential mid-character start/end
+        # Use 'ignore' to skip invalid bytes at boundaries
+        chunk_text = chunk_bytes.decode('utf-8', errors='ignore')
+        # Store in a vim variable
+        vim.command("let chunk_conversation = " + repr(chunk_text))
+except Exception as e:
+    print(f"Error reading chunk: {e}")
+    vim.command("let chunk_conversation = ''")
+EOF
 
         " Process this chunk and save to temp file
         call s:ProcessSummaryChunk(chunk_conversation, chunk_idx + 1, chunk_count, temp_chunks_dir)
@@ -2687,13 +2787,33 @@ function! GenerateConversationSummary()
       echo "\nConversation summary generated at .vim-chatgpt/summary.md (processed in " . chunk_count . " chunks)"
       return
     else
-      " Small enough to process in one go
-      if bytes_to_summarize > 0
-        let new_conversation = strpart(all_history, old_cutoff, bytes_to_summarize)
-      else
-        " First summary - read everything up to new_cutoff
-        let new_conversation = strpart(all_history, 0, new_cutoff)
-      endif
+      " Small enough to process in one go - use Python to safely extract
+      python3 << EOF
+import vim
+
+history_file = vim.eval('history_file')
+old_cutoff = int(vim.eval('old_cutoff'))
+new_cutoff = int(vim.eval('new_cutoff'))
+bytes_to_summarize = int(vim.eval('bytes_to_summarize'))
+
+try:
+    with open(history_file, 'rb') as f:
+        if bytes_to_summarize > 0:
+            # Read from old_cutoff to new_cutoff
+            f.seek(old_cutoff)
+            chunk_bytes = f.read(bytes_to_summarize)
+        else:
+            # First summary - read everything up to new_cutoff
+            f.seek(0)
+            chunk_bytes = f.read(new_cutoff)
+
+        # Decode with error handling for potential mid-character boundaries
+        new_conversation = chunk_bytes.decode('utf-8', errors='ignore')
+        vim.command("let new_conversation = " + repr(new_conversation))
+except Exception as e:
+    print(f"Error reading conversation: {e}")
+    vim.command("let new_conversation = ''")
+EOF
     endif
   endif
 
