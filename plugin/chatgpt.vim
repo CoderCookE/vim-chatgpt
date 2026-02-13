@@ -922,8 +922,8 @@ def execute_tool(tool_name, arguments):
             pattern = arguments.get("pattern")
             case_sensitive = arguments.get("case_sensitive", False)
 
-            # Build grep command
-            cmd = ["grep", "-n"]
+            # Build grep command with -F for fixed string search (safer)
+            cmd = ["grep", "-n", "-F"]
             if not case_sensitive:
                 cmd.append("-i")
             cmd.extend([pattern, file_path])
@@ -1778,9 +1778,6 @@ class AnthropicProvider(BaseProvider):
         if tools:
             formatted = self.format_tools_for_api(tools)
             payload['tools'] = formatted
-            debug_log(f"INFO: Anthropic API call with {len(formatted)} tools")
-        else:
-            debug_log(f"WARNING: Anthropic API call with NO tools")
 
         # Construct URL - ensure we have /v1/messages endpoint
         base_url = self.config['base_url'].rstrip('/')
@@ -1821,10 +1818,6 @@ class AnthropicProvider(BaseProvider):
                 chunk = json.loads(data)
                 chunk_type = chunk.get('type')
 
-                # Log all chunk types except common ones to reduce noise
-                if chunk_type not in ['ping', 'content_block_delta']:
-                    debug_log(f"ANTHROPIC: Received chunk type: {chunk_type}")
-
                 # Handle text content
                 if chunk_type == 'content_block_delta':
                     delta = chunk.get('delta', {})
@@ -1849,14 +1842,11 @@ class AnthropicProvider(BaseProvider):
                             'name': block.get('name', ''),
                             'input': ''
                         }
-                        debug_log(f"ANTHROPIC: Tool use started - name: {block.get('name', '')}, id: {block.get('id', '')}")
 
                 # Handle message end
                 elif chunk_type == 'message_delta':
-                    debug_log(f"ANTHROPIC: message_delta event: {chunk}")
                     finish_reason = chunk.get('delta', {}).get('stop_reason', '')
                     if finish_reason:
-                        debug_log(f"ANTHROPIC: Finishing with reason: {finish_reason}, tool_use_blocks: {tool_use_blocks}")
                         # Convert accumulated tool blocks to tool_calls
                         tool_calls = None
                         if tool_use_blocks:
@@ -1875,10 +1865,8 @@ class AnthropicProvider(BaseProvider):
                                         'name': tool_data['name'],
                                         'arguments': arguments
                                     })
-                                    debug_log(f"ANTHROPIC: Successfully parsed tool call: {tool_data['name']} with args: {arguments}")
                                 except json.JSONDecodeError as e:
-                                    debug_log(f"ANTHROPIC: JSON decode error for tool input: {e}, input was: {tool_data.get('input', '')[:200]}")
-                        debug_log(f"ANTHROPIC: Yielding finish with tool_calls: {tool_calls}")
+                                    pass  # Skip malformed tool calls
                         yield ('', finish_reason, tool_calls)
             except json.JSONDecodeError:
                 continue
@@ -2174,11 +2162,8 @@ def create_provider(provider_name):
 def chat_gpt(prompt):
   import sys
 
-  try:
-    debug_log(f"INFO: chat_gpt called with prompt length: {len(prompt)}")
-    debug_log(f"INFO: Prompt preview: {repr(prompt[:200])}")
-  except Exception as e:
-    debug_log(f"INFO: chat_gpt called (error printing prompt: {e})")
+  # Log minimal info for debugging
+  debug_log(f"chat_gpt called - prompt length: {len(prompt)}")
 
   token_limits = {
     "gpt-3.5-turbo": 4097,
@@ -2257,11 +2242,11 @@ def chat_gpt(prompt):
   require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
 
   if enable_tools and provider.supports_tools():
-    # Add tool usage instructions
-    system_message += "\n\n## CRITICAL: Tool Usage Rules\n\nYou have tools for file operations and git commands. You MUST use these tools - do not just talk about using them.\n\nWhen the user asks you to:\n- 'run git status', 'check git status', 'what changed' → IMMEDIATELY call git_status\n- 'run git log', 'show commits', 'commit history' → IMMEDIATELY call git_log\n- 'run git diff', 'show changes', 'what's different' → IMMEDIATELY call git_diff\n- 'list files', 'show directory' → IMMEDIATELY call list_directory\n- 'read file X', 'show file X' → IMMEDIATELY call read_file\n- Any other git/file operation → IMMEDIATELY call the appropriate tool\n\nDO NOT respond with text like 'I will help you...' or 'Let me check...'. Instead, IMMEDIATELY use the tool by including it in your response.\n"
+    # Add structured workflow instructions
+    system_message += "\n\n## AGENT WORKFLOW\n\nYou are an agentic assistant that follows a structured workflow:\n\n### PHASE 1: PLANNING (when you receive a new user request)\n1. Analyze the user's intention - what is their goal?\n2. Create a detailed plan to achieve that goal\n3. Identify which tools (if any) are needed\n4. Present the plan in this EXACT format:\n\n```\n🎯 GOAL: [Clear statement of what we're trying to achieve]\n\n📋 PLAN:\n1. [First step - include tool name if needed, e.g., \"Check repository status (git_status)\"]\n2. [Second step - e.g., \"Review changes (git_diff with staged=false)\"]\n3. [Continue with all steps...]\n\n🛠️ TOOLS REQUIRED: [List tool names: git_status, git_diff, git_commit, etc.]\n\n⏱️ ESTIMATED STEPS: [Number]\n```\n\n5. CRITICAL: Present ONLY the plan text - do NOT call any tools yet\n6. Wait for user approval\n\n### PHASE 2: EXECUTION (after plan approval)\nWhen user approves the plan with a message like \"Plan approved. Please proceed\":\n1. NOW you should execute the tools according to your plan\n2. Start by calling the first tool in your plan\n2. After EACH tool execution, evaluate: \"Do the results change the plan?\"\n3. If plan needs revision:\n   - Present a REVISED PLAN using the same format\n   - Mark it with \"🔄 REVISED PLAN\" at the top\n   - Explain what changed and why\n   - Wait for user approval\n4. If plan is on track: continue to next step\n\n### PHASE 3: COMPLETION\n1. Confirm the goal has been achieved\n2. Summarize what was done\n\nIMPORTANT:\n- ALWAYS start with PLANNING phase for new requests\n- NEVER execute tools before showing a plan (unless plan approval is disabled)\n- After each tool execution, EVALUATE if plan needs adjustment\n- Be transparent about what you're doing and why\n"
 
-    if require_plan_approval:
-      system_message += "\n## Plan Approval Process\n\nBefore executing tools, you must present a plan:\n1. Immediately identify which tools you will use\n2. Create a brief explanation of your plan\n3. List the specific tool calls you will make (with exact tool names and parameters)\n4. Wait for user approval with your tool_use blocks ready\n5. After approval, execute the tools\n\nIMPORTANT: The plan must include the actual tool_use blocks, not just descriptions. When you create a plan, you are making the tool calls - the user just needs to approve them first.\n\nAfter each tool execution:\n- If the result requires a different approach, present a REVISED PLAN for approval (start with '=== REVISED PLAN ===')\n- If the result is as expected, continue with the next step\n- If complete, summarize what was accomplished\n"
+    if not require_plan_approval:
+      system_message += "\nNOTE: Plan approval is DISABLED. You should still create plans mentally, but execute tools immediately.\n"
 
   # Session history management
   history = []
@@ -2356,7 +2341,6 @@ def chat_gpt(prompt):
   enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
   if enable_tools and provider.supports_tools():
     tools = get_tool_definitions()
-    debug_log(f"INFO: Loaded {len(tools)} tools for this session")
   else:
     debug_log(f"WARNING: Tools not enabled - enable_tools={enable_tools}, supports_tools={provider.supports_tools()}")
 
@@ -2367,18 +2351,17 @@ def chat_gpt(prompt):
     tool_iteration = 0
     plan_approved = not require_plan_approval  # Skip approval if not required
     accumulated_content = ""  # Accumulate content for each iteration
+    in_planning_phase = True  # Start in planning phase for new requests
+    plan_loop_count = 0  # Track how many times we've seen a plan without tool execution
 
     while tool_iteration < max_tool_iterations:
       tool_calls_to_process = None
       accumulated_content = ""  # Reset for each iteration
 
-      debug_log(f"INFO: Starting streaming iteration {tool_iteration + 1}")
 
       chunk_count = 0
       for content, finish_reason, tool_calls in provider.stream_chat(messages, model, temperature, max_tokens, tools):
         chunk_count += 1
-        if chunk_count <= 5:  # Log first 5 chunks only to avoid spam
-          debug_log(f"CHUNK {chunk_count}: content={repr(content[:100]) if content else None}, finish={finish_reason}, tools={tool_calls}")
         # Display content as it streams
         if content:
           # Accumulate content to detect plan revisions
@@ -2390,64 +2373,151 @@ def chat_gpt(prompt):
 
         # Handle finish
         if finish_reason:
-          debug_log(f"INFO: Received finish_reason: {finish_reason}, tool_calls object: {tool_calls}, content_length: {len(accumulated_content)}")
           if tool_calls:
             tool_calls_to_process = tool_calls
-            debug_log(f"INFO: Will process {len(tool_calls)} tool calls: {tool_calls}")
           else:
-            debug_log(f"INFO: No tool calls (tool_calls is: {repr(tool_calls)})")
             if not suppress_display:
               vim.command("call DisplayChatGPTResponse('', '{0}', '{1}')".format(finish_reason.replace("'", "''"), chunk_session_id))
               vim.command("redraw")
 
-      debug_log(f"INFO: Streaming completed. Received {chunk_count} chunks total")
 
-      # If no tool calls, we're done
+      # If no tool calls, check if this is a planning response
       if not tool_calls_to_process:
-        debug_log(f"INFO: No tool calls received from model. Accumulated content length: {len(accumulated_content)}")
-        if accumulated_content:
-          debug_log(f"INFO: Model response preview: {accumulated_content[:300]}")
-        else:
-          debug_log(f"WARNING: Model returned empty response with no tool calls!")
-        break
+        debug_log(f"No tool calls. Checking for plan presentation...")
+        debug_log(f"  accumulated_content length: {len(accumulated_content)}")
+        debug_log(f"  require_plan_approval: {require_plan_approval}")
+        debug_log(f"  in_planning_phase: {in_planning_phase}")
 
-      # Detect revised plan or initial plan
-      is_initial_plan = (tool_iteration == 0 and not plan_approved)
-      is_revised_plan = ("=== REVISED PLAN ===" in accumulated_content or "REVISED PLAN" in accumulated_content)
-      needs_approval = require_plan_approval and (is_initial_plan or is_revised_plan)
+        # Check if this is a plan presentation (contains goal/plan markers)
+        # Fix boolean logic: parenthesize the 'and' condition
+        has_emoji_markers = ('🎯 GOAL:' in accumulated_content or '📋 PLAN:' in accumulated_content)
+        has_text_markers = ('GOAL:' in accumulated_content and 'PLAN:' in accumulated_content)
+        is_plan_presentation = has_emoji_markers or has_text_markers
+        debug_log(f"  is_plan_presentation: {is_plan_presentation}")
+        debug_log(f"  Content preview: {accumulated_content[:300]}")
 
-      # Request approval for initial or revised plans
-      if needs_approval:
-        # Show a separator and the plan
-        # Use formatted plan display
-        plan_type = "REVISED PLAN" if is_revised_plan else "INITIAL PLAN"
-        plan_display = format_plan_display(plan_type, accumulated_content.strip(), tool_calls_to_process)
-        plan_display += "\n" + "="*60 + "\n\n"
+        if is_plan_presentation and require_plan_approval and in_planning_phase:
+          # Increment loop counter to detect infinite loops
+          plan_loop_count += 1
+          debug_log(f"  Plan presentation detected (loop count: {plan_loop_count})")
+          debug_log(f"  Full content that triggered detection:\n{accumulated_content}")
 
-        if not suppress_display:
-          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(plan_display.replace("'", "''"), chunk_session_id))
+          # Safeguard against infinite loops
+          if plan_loop_count > 2:
+            error_msg = "\n\n❌ ERROR: Model keeps presenting plans without executing. Please try rephrasing your request or disable plan approval.\n"
+            vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(error_msg.replace("'", "''"), chunk_session_id))
+            break
 
-        # Ensure we're in a proper window for input (DisplayChatGPTResponse now returns to original window)
-        # Force multiple redraws to ensure display is fully updated before prompting
-        vim.command("redraw!")
-        vim.command("sleep 100m")  # Brief pause to ensure redraw completes
-        vim.command("redraw!")
+          # Verify this is actually a valid plan before asking for approval
+          # A valid plan should have multiple steps
+          has_numbered_steps = bool(re.search(r'\d+\.\s+', accumulated_content))
+          if not has_numbered_steps:
+            debug_log(f"  WARNING: Detected plan markers but no numbered steps found. Treating as regular response.")
+            # Not a real plan, just continue
+            break
 
-        approval_prompt = "Approve revised plan? [y]es to proceed, [n]o to cancel: " if is_revised_plan else "Approve plan? [y]es to proceed, [n]o to cancel: "
-        approval = vim.eval(f"input('{approval_prompt}')")
+          # IMPORTANT: Add the assistant's plan response to conversation history
+          # so the model has context when we send the approval message
+          if provider_name == 'anthropic' and isinstance(messages, dict):
+            messages['messages'].append({
+              "role": "assistant",
+              "content": [{"type": "text", "text": accumulated_content}]
+            })
+          elif isinstance(messages, list):
+            messages.append({
+              "role": "assistant",
+              "content": accumulated_content
+            })
 
-        if approval.lower() not in ['y', 'yes']:
+          # Ask for approval
           if not suppress_display:
-            cancel_msg = "\n\n" + format_box("PLAN CANCELLED", "User declined to approve the plan.", width=60) + "\n"
-            vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(cancel_msg.replace("'", "''"), chunk_session_id))
+            approval_prompt_msg = "\n\n" + "="*70 + "\n"
+            approval_prompt_msg += "📋 Plan presented above. Approve? [y]es to proceed, [n]o to cancel, [r]evise for changes: "
+            vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_prompt_msg.replace("'", "''"), chunk_session_id))
+            vim.command("redraw!")
+
+            approval = vim.eval("input('')")
+
+            if approval.lower() in ['n', 'no']:
+              cancel_msg = "\n\n❌ Plan cancelled by user.\n"
+              vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(cancel_msg.replace("'", "''"), chunk_session_id))
+              break
+            elif approval.lower() in ['r', 'revise']:
+              revise_msg = "\n\n🔄 User requested plan revision.\n"
+              vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(revise_msg.replace("'", "''"), chunk_session_id))
+              revision_request = vim.eval("input('What changes would you like? ')")
+
+              # Send revision request back to model - handle all provider formats
+              # Note: Assistant message with plan was already added above
+              if provider_name == 'anthropic' and isinstance(messages, dict):
+                messages['messages'].append({
+                  "role": "user",
+                  "content": f"Please revise the plan based on this feedback: {revision_request}"
+                })
+              elif isinstance(messages, list):
+                # OpenAI, Gemini, Ollama format
+                messages.append({
+                  "role": "user",
+                  "content": f"Please revise the plan based on this feedback: {revision_request}"
+                })
+
+              continue  # Go to next iteration with revision request
+            else:
+              # Approved - proceed with execution
+              plan_approved = True
+              in_planning_phase = False
+              approval_msg = "\n\n✅ Plan approved! Proceeding with execution...\n\n"
+              vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
+
+              # Send approval message to model to trigger execution - handle all provider formats
+              approval_instruction = "Plan approved. Please proceed with executing the plan step by step. Use the tools as specified in your plan. Start with step 1 and call the first tool now."
+
+              if provider_name == 'anthropic' and isinstance(messages, dict):
+                messages['messages'].append({
+                  "role": "user",
+                  "content": approval_instruction
+                })
+              elif isinstance(messages, list):
+                # OpenAI, Gemini, Ollama format
+                messages.append({
+                  "role": "user",
+                  "content": approval_instruction
+                })
+
+              continue  # Go to next iteration to start execution
+        else:
+          # No tool calls and not a plan - conversation is done
           break
 
-        plan_approved = True
-        if not suppress_display:
-          # Format approval message with icon
-          approval_text = "Revised plan approved. Proceeding with execution..." if is_revised_plan else "Plan approved. Executing tools..."
-          approval_msg = f"\n\n✓ {approval_text}\n"
-          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
+      # Check if model is presenting a revised plan during execution
+      is_revised_plan = ("🔄 REVISED PLAN" in accumulated_content or
+                        "=== REVISED PLAN ===" in accumulated_content or
+                        ("REVISED PLAN" in accumulated_content and not in_planning_phase))
+
+      # If revised plan is detected with tool calls, ask for approval
+      if is_revised_plan and require_plan_approval and not suppress_display:
+
+        # Show the revised plan header
+        revised_plan_header = "\n\n" + "="*70 + "\n"
+        revised_plan_header += "🔄 The agent has proposed a REVISED PLAN based on the results.\n"
+        revised_plan_header += "="*70 + "\n"
+        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(revised_plan_header.replace("'", "''"), chunk_session_id))
+
+        # Ask for approval
+        vim.command("redraw!")
+        vim.command("sleep 100m")
+        vim.command("redraw!")
+
+        approval = vim.eval("input('Approve revised plan? [y]es to proceed, [n]o to cancel: ')")
+
+        if approval.lower() not in ['y', 'yes']:
+          cancel_msg = "\n\n❌ Revised plan cancelled by user.\n"
+          vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(cancel_msg.replace("'", "''"), chunk_session_id))
+          break
+
+        # Approved - continue execution
+        approval_msg = "\n\n✅ Revised plan approved! Continuing execution...\n\n"
+        vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
 
       # Execute tools and add results to messages
       tool_iteration += 1
@@ -2478,6 +2548,9 @@ def chat_gpt(prompt):
         })
 
       # Now execute tools and collect results
+      # Reset plan loop counter since we're successfully executing tools
+      plan_loop_count = 0
+
       tool_results = []
       for tool_call in tool_calls_to_process:
         tool_name = tool_call['name']
@@ -2485,26 +2558,17 @@ def chat_gpt(prompt):
         tool_id = tool_call.get('id', 'unknown')
 
         # Execute the tool
-        debug_log(f"INFO: Executing tool: {tool_name} with args: {tool_args}")
         tool_result = execute_tool(tool_name, tool_args)
-        debug_log(f"INFO: Tool {tool_name} returned {len(tool_result)} chars: {tool_result[:200]}")
         tool_results.append((tool_id, tool_name, tool_args, tool_result))
 
         # Display tool usage in session
         # Display tool usage with formatting
-        debug_log(f"INFO: suppress_display={suppress_display}, about to display tool result")
         if not suppress_display:
-          debug_log(f"INFO: Formatting and displaying tool result for {tool_name}")
           tool_display = format_tool_result(tool_name, tool_args, tool_result, max_lines=15)
-          debug_log(f"INFO: Formatted tool display length: {len(tool_display)}")
           # Escape for VimScript by doubling single quotes
           escaped_display = tool_display.replace("'", "''")
-          debug_log(f"INFO: Calling Vim DisplayChatGPTResponse for tool result")
           vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(escaped_display, chunk_session_id))
           vim.command("redraw")
-          debug_log(f"INFO: Tool result displayed successfully")
-        else:
-          debug_log(f"WARNING: Tool result NOT displayed because suppress_display=True")
 
       # Add tool results to messages - format depends on provider
       if provider_name == 'openai':
@@ -2617,20 +2681,14 @@ endfunction
 
 " Function to generate a commit message using git integration
 function! GenerateCommitMessage()
-  " Create a prompt that instructs the AI to use git tools
+  " Create a prompt that lets the new workflow handle it
   let prompt = 'Please help me create a git commit message.'
-  let prompt .= "\n\nYou MUST follow these steps:"
-  let prompt .= "\n1. FIRST: Call git_status to check the repository state"
-  let prompt .= "\n2. THEN: Call git_diff with staged=true (or staged=false if nothing is staged)"
-  let prompt .= "\n3. Based on the actual changes, draft a commit message following this format:"
-  let prompt .= "\n   - Type: feat/fix/docs/style/refactor/test/chore"
-  let prompt .= "\n   - Short descriptive title (50 chars or less)"
-  let prompt .= "\n   - Optional body with more details if needed"
-  let prompt .= "\n   - Match the style of recent commits shown in git_status"
-  let prompt .= "\n4. Show me the proposed commit message and ask for approval"
-  let prompt .= "\n5. Once approved, call git_commit with the message"
-  let prompt .= "\n\nIMPORTANT: If there are no staged changes, ask if I want to stage files first using git_add."
-  let prompt .= "\n\nDo NOT just describe what you would do - actually CALL the tools now!"
+  let prompt .= "\n\nThe goal is to:"
+  let prompt .= "\n- Check the repository status"
+  let prompt .= "\n- Review the changes that will be committed"
+  let prompt .= "\n- Draft an appropriate commit message following conventional commit format"
+  let prompt .= "\n- Create the commit"
+  let prompt .= "\n\nIf there are no staged changes, ask if I want to stage files first."
 
   " Call ChatGPT with session mode and plan approval enabled
   " This allows the AI to use tools and get user approval
