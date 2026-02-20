@@ -11,7 +11,6 @@ import re
 import vim
 from chatgpt.utils import debug_log, safe_vim_eval, get_config
 
-
 # Session-level cache for approved tools
 # Keys: tool_name -> approval status ('always', 'session', 'denied')
 _approved_tools = {}
@@ -23,11 +22,7 @@ def get_tool_definitions():
         {
             "name": "get_working_directory",
             "description": "Get the current working directory path. Use this to understand the project root location.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
         {
             "name": "list_directory",
@@ -37,16 +32,16 @@ def get_tool_definitions():
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the directory to list (absolute or relative to current directory). Use '.' for current directory."
+                        "description": "Path to the directory to list (absolute or relative to current directory). Use '.' for current directory.",
                     },
                     "show_hidden": {
                         "type": "boolean",
                         "description": "Whether to show hidden files/directories (those starting with '.'). Default: false",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["path"]
-            }
+                "required": ["path"],
+            },
         },
         {
             "name": "find_in_file",
@@ -56,20 +51,20 @@ def get_tool_definitions():
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file to search in (absolute or relative to current directory)"
+                        "description": "Path to the file to search in (absolute or relative to current directory)",
                     },
                     "pattern": {
                         "type": "string",
-                        "description": "Text pattern or regex to search for"
+                        "description": "Text pattern or regex to search for",
                     },
                     "case_sensitive": {
                         "type": "boolean",
                         "description": "Whether the search should be case sensitive (default: false)",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["file_path", "pattern"]
-            }
+                "required": ["file_path", "pattern"],
+            },
         },
         {
             "name": "find_file_in_project",
@@ -79,16 +74,16 @@ def get_tool_definitions():
                 "properties": {
                     "pattern": {
                         "type": "string",
-                        "description": "File name pattern to search for (supports wildcards like *.py, *test*, etc.)"
+                        "description": "File name pattern to search for (supports wildcards like *.py, *test*, etc.)",
                     },
                     "max_results": {
                         "type": "integer",
                         "description": "Maximum number of results to return (default: 20)",
-                        "default": 20
-                    }
+                        "default": 20,
+                    },
                 },
-                "required": ["pattern"]
-            }
+                "required": ["pattern"],
+            },
         },
         {
             "name": "read_file",
@@ -98,16 +93,16 @@ def get_tool_definitions():
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file to read (absolute or relative to current directory)"
+                        "description": "Path to the file to read (absolute or relative to current directory)",
                     },
                     "max_lines": {
                         "type": "integer",
                         "description": "Maximum number of lines to read (default: 100)",
-                        "default": 100
-                    }
+                        "default": 100,
+                    },
                 },
-                "required": ["file_path"]
-            }
+                "required": ["file_path"],
+            },
         },
         {
             "name": "create_file",
@@ -117,20 +112,20 @@ def get_tool_definitions():
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path where the new file should be created (absolute or relative to current directory)"
+                        "description": "Path where the new file should be created (absolute or relative to current directory)",
                     },
                     "content": {
                         "type": "string",
-                        "description": "The content to write to the new file"
+                        "description": "The content to write to the new file",
                     },
                     "overwrite": {
                         "type": "boolean",
                         "description": "Whether to overwrite if file already exists (default: false)",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["file_path", "content"]
-            }
+                "required": ["file_path", "content"],
+            },
         },
         {
             "name": "open_file",
@@ -140,21 +135,21 @@ def get_tool_definitions():
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file to open in Vim (absolute or relative to current directory)"
+                        "description": "Path to the file to open in Vim (absolute or relative to current directory)",
                     },
                     "split": {
                         "type": "string",
                         "description": "How to open the file: 'vertical' (default), 'horizontal', or 'current'",
                         "enum": ["current", "horizontal", "vertical"],
-                        "default": "vertical"
+                        "default": "vertical",
                     },
                     "line_number": {
                         "type": "integer",
-                        "description": "Optional: Line number to jump to after opening the file (1-indexed)"
-                    }
+                        "description": "Optional: Line number to jump to after opening the file (1-indexed)",
+                    },
                 },
-                "required": ["file_path"]
-            }
+                "required": ["file_path"],
+            },
         },
         {
             "name": "edit_file",
@@ -164,19 +159,19 @@ def get_tool_definitions():
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file to edit (absolute or relative to current directory)"
+                        "description": "Path to the file to edit (absolute or relative to current directory)",
                     },
                     "old_content": {
                         "type": "string",
-                        "description": "The exact content to find and replace. Must match exactly including whitespace."
+                        "description": "The exact content to find and replace. Must match exactly including whitespace.",
                     },
                     "new_content": {
                         "type": "string",
-                        "description": "The new content to replace the old content with"
-                    }
+                        "description": "The new content to replace the old content with",
+                    },
                 },
-                "required": ["file_path", "old_content", "new_content"]
-            }
+                "required": ["file_path", "old_content", "new_content"],
+            },
         },
         {
             "name": "edit_file_lines",
@@ -186,32 +181,28 @@ def get_tool_definitions():
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file to edit (absolute or relative to current directory)"
+                        "description": "Path to the file to edit (absolute or relative to current directory)",
                     },
                     "start_line": {
                         "type": "integer",
-                        "description": "Starting line number (1-indexed, INCLUSIVE). This line WILL be replaced. Example: start_line=5 means line 5 will be included in the replacement."
+                        "description": "Starting line number (1-indexed, INCLUSIVE). This line WILL be replaced. Example: start_line=5 means line 5 will be included in the replacement.",
                     },
                     "end_line": {
                         "type": "integer",
-                        "description": "Ending line number (1-indexed, INCLUSIVE). This line WILL be replaced. Must be >= start_line. Example: end_line=7 means line 7 will be included in the replacement. To replace only line 5, use start_line=5 and end_line=5."
+                        "description": "Ending line number (1-indexed, INCLUSIVE). This line WILL be replaced. Must be >= start_line. Example: end_line=7 means line 7 will be included in the replacement. To replace only line 5, use start_line=5 and end_line=5.",
                     },
                     "new_content": {
                         "type": "string",
-                        "description": "The new content to replace the specified line range. Can be multiple lines separated by newlines. This content will replace ALL lines from start_line to end_line (inclusive)."
-                    }
+                        "description": "The new content to replace the specified line range. Can be multiple lines separated by newlines. This content will replace ALL lines from start_line to end_line (inclusive).",
+                    },
                 },
-                "required": ["file_path", "start_line", "end_line", "new_content"]
-            }
+                "required": ["file_path", "start_line", "end_line", "new_content"],
+            },
         },
         {
             "name": "git_status",
             "description": "Get the current git repository status. Shows working tree status including staged, unstaged, and untracked files. Also includes recent commit history for context.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
         {
             "name": "git_diff",
@@ -222,15 +213,15 @@ def get_tool_definitions():
                     "staged": {
                         "type": "boolean",
                         "description": "If true, show staged changes (git diff --cached). If false, show unstaged changes (git diff). Default: false",
-                        "default": False
+                        "default": False,
                     },
                     "file_path": {
                         "type": "string",
-                        "description": "Optional: specific file path to diff. If not provided, shows all changes."
-                    }
+                        "description": "Optional: specific file path to diff. If not provided, shows all changes.",
+                    },
                 },
-                "required": []
-            }
+                "required": [],
+            },
         },
         {
             "name": "git_log",
@@ -241,20 +232,20 @@ def get_tool_definitions():
                     "max_count": {
                         "type": "integer",
                         "description": "Maximum number of commits to show (default: 10)",
-                        "default": 10
+                        "default": 10,
                     },
                     "oneline": {
                         "type": "boolean",
                         "description": "If true, show compact one-line format. If false, show detailed format (default: true)",
-                        "default": True
+                        "default": True,
                     },
                     "file_path": {
                         "type": "string",
-                        "description": "Optional: show history for specific file path"
-                    }
+                        "description": "Optional: show history for specific file path",
+                    },
                 },
-                "required": []
-            }
+                "required": [],
+            },
         },
         {
             "name": "git_show",
@@ -264,11 +255,11 @@ def get_tool_definitions():
                 "properties": {
                     "commit": {
                         "type": "string",
-                        "description": "Commit hash, branch name, or reference (e.g., 'HEAD', 'HEAD~1', 'abc123')"
+                        "description": "Commit hash, branch name, or reference (e.g., 'HEAD', 'HEAD~1', 'abc123')",
                     }
                 },
-                "required": ["commit"]
-            }
+                "required": ["commit"],
+            },
         },
         {
             "name": "git_branch",
@@ -279,11 +270,11 @@ def get_tool_definitions():
                     "list_all": {
                         "type": "boolean",
                         "description": "If true, list all branches. If false, show only current branch (default: false)",
-                        "default": False
+                        "default": False,
                     }
                 },
-                "required": []
-            }
+                "required": [],
+            },
         },
         {
             "name": "git_add",
@@ -294,11 +285,11 @@ def get_tool_definitions():
                     "files": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of file paths to stage. Use ['.'] to stage all changes."
+                        "description": "List of file paths to stage. Use ['.'] to stage all changes.",
                     }
                 },
-                "required": ["files"]
-            }
+                "required": ["files"],
+            },
         },
         {
             "name": "git_reset",
@@ -309,11 +300,11 @@ def get_tool_definitions():
                     "files": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of file paths to unstage. If empty, unstages all files."
+                        "description": "List of file paths to unstage. If empty, unstages all files.",
                     }
                 },
-                "required": []
-            }
+                "required": [],
+            },
         },
         {
             "name": "git_commit",
@@ -323,17 +314,17 @@ def get_tool_definitions():
                 "properties": {
                     "message": {
                         "type": "string",
-                        "description": "Commit message. Should be descriptive and follow conventional commit format if possible."
+                        "description": "Commit message. Should be descriptive and follow conventional commit format if possible.",
                     },
                     "amend": {
                         "type": "boolean",
                         "description": "If true, amend the previous commit instead of creating a new one (default: false)",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["message"]
-            }
-        }
+                "required": ["message"],
+            },
+        },
     ]
 
 
@@ -366,40 +357,46 @@ def validate_file_path(file_path, operation="file operation"):
 
         # Blocked patterns - sensitive system paths (always deny, no prompt)
         blocked_patterns = [
-            r'^/etc/',
-            r'^/private/etc/',  # macOS: /etc is symlink to /private/etc
-            r'^/sys/',
-            r'^/proc/',
-            r'^/dev/',
-            r'^/root/',
-            r'^/boot/',
-            r'^/bin/',
-            r'^/sbin/',
-            r'^/lib',
-            r'^/usr/bin/',
-            r'^/usr/sbin/',
-            r'^/usr/lib',
-            r'^C:\\Windows\\',
-            r'^C:\\Program Files',
-            r'^/System/',
-            r'^/Library/System',
+            r"^/etc/",
+            r"^/private/etc/",  # macOS: /etc is symlink to /private/etc
+            r"^/sys/",
+            r"^/proc/",
+            r"^/dev/",
+            r"^/root/",
+            r"^/boot/",
+            r"^/bin/",
+            r"^/sbin/",
+            r"^/lib",
+            r"^/usr/bin/",
+            r"^/usr/sbin/",
+            r"^/usr/lib",
+            r"^C:\\Windows\\",
+            r"^C:\\Program Files",
+            r"^/System/",
+            r"^/Library/System",
         ]
 
         for pattern in blocked_patterns:
             if re.match(pattern, real_path, re.IGNORECASE):
-                return (False, f"Security: {operation} denied. Cannot modify system path: {file_path}")
+                return (
+                    False,
+                    f"Security: {operation} denied. Cannot modify system path: {file_path}",
+                )
 
         # Check for suspicious path components (always deny)
         path_parts = os.path.normpath(file_path).split(os.sep)
-        if '..' in path_parts:
-            return (False, f"Security: {operation} denied. Path contains '..' traversal: {file_path}")
+        if ".." in path_parts:
+            return (
+                False,
+                f"Security: {operation} denied. Path contains '..' traversal: {file_path}",
+            )
 
         # Check if path is within current working directory
         # Use os.path.commonpath to ensure it's truly a subdirectory
         is_within_project = False
         try:
             common = os.path.commonpath([cwd, real_path])
-            is_within_project = (common == cwd)
+            is_within_project = common == cwd
         except ValueError:
             # Paths are on different drives (Windows) or one is relative
             is_within_project = False
@@ -426,16 +423,26 @@ def validate_file_path(file_path, operation="file operation"):
 
             if result == 1:
                 # User approved
-                debug_log(f"INFO: User approved {operation} outside project: {file_path}")
+                debug_log(
+                    f"INFO: User approved {operation} outside project: {file_path}"
+                )
                 return (True, None)
             else:
                 # User denied
-                debug_log(f"WARNING: User denied {operation} outside project: {file_path}")
-                return (False, f"Security: {operation} denied by user. Path '{file_path}' is outside project directory.")
+                debug_log(
+                    f"WARNING: User denied {operation} outside project: {file_path}"
+                )
+                return (
+                    False,
+                    f"Security: {operation} denied by user. Path '{file_path}' is outside project directory.",
+                )
         except Exception as e:
             # If we can't prompt (e.g., in non-interactive mode), deny by default
             debug_log(f"ERROR: Failed to prompt user for permission: {str(e)}")
-            return (False, f"Security: {operation} denied. Path '{file_path}' is outside project directory and user confirmation failed.")
+            return (
+                False,
+                f"Security: {operation} denied. Path '{file_path}' is outside project directory and user confirmation failed.",
+            )
 
     except Exception as e:
         return (False, f"Security: Error validating path: {str(e)}")
@@ -471,14 +478,14 @@ def check_tool_approval(tool_name, arguments):
     global _approved_tools
 
     # Check if tool approval is enabled (enabled by default for security)
-    require_approval = get_config('require_tool_approval', '1')
-    if require_approval == '0':
+    require_approval = get_config("require_tool_approval", "1")
+    if require_approval == "0":
         return (True, None)
 
     # Check if tool is already approved
     if tool_name in _approved_tools:
         status = _approved_tools[tool_name]
-        if status == 'denied':
+        if status == "denied":
             return (False, f"Tool '{tool_name}' was denied by user")
         # 'always' or 'session' - both mean approved
         return (True, None)
@@ -509,12 +516,12 @@ def check_tool_approval(tool_name, arguments):
             return (True, None)
         elif result == 2:
             # Always allow - add to cache
-            _approved_tools[tool_name] = 'always'
+            _approved_tools[tool_name] = "always"
             debug_log(f"INFO: Tool '{tool_name}' always allowed by user")
             return (True, None)
         else:  # result == 3 or any other value (including escape)
             # Deny - add to cache
-            _approved_tools[tool_name] = 'denied'
+            _approved_tools[tool_name] = "denied"
             debug_log(f"WARNING: Tool '{tool_name}' denied by user")
             return (False, f"Tool '{tool_name}' denied by user")
 
@@ -560,11 +567,15 @@ def execute_tool(tool_name, arguments):
 
                 # Filter hidden files if needed
                 if not show_hidden:
-                    items = [item for item in items if not item.startswith('.')]
+                    items = [item for item in items if not item.startswith(".")]
 
                 # Sort items: directories first, then files
-                dirs = sorted([item for item in items if os.path.isdir(os.path.join(path, item))])
-                files = sorted([item for item in items if os.path.isfile(os.path.join(path, item))])
+                dirs = sorted(
+                    [item for item in items if os.path.isdir(os.path.join(path, item))]
+                )
+                files = sorted(
+                    [item for item in items if os.path.isfile(os.path.join(path, item))]
+                )
 
                 # Format output
                 result_lines = []
@@ -581,7 +592,11 @@ def execute_tool(tool_name, arguments):
                         file_path = os.path.join(path, f)
                         try:
                             size = os.path.getsize(file_path)
-                            size_str = f"{size:,} bytes" if size < 1024 else f"{size/1024:.1f} KB"
+                            size_str = (
+                                f"{size:,} bytes"
+                                if size < 1024
+                                else f"{size/1024:.1f} KB"
+                            )
                             result_lines.append(f"  {f} ({size_str})")
                         except:
                             result_lines.append(f"  {f}")
@@ -590,7 +605,10 @@ def execute_tool(tool_name, arguments):
                     return f"Directory is empty: {path}"
 
                 total = len(dirs) + len(files)
-                result_lines.insert(0, f"Listing {path} ({len(dirs)} directories, {len(files)} files):\n")
+                result_lines.insert(
+                    0,
+                    f"Listing {path} ({len(dirs)} directories, {len(files)} files):\n",
+                )
 
                 return "\n".join(result_lines)
             except PermissionError:
@@ -626,7 +644,10 @@ def execute_tool(tool_name, arguments):
                 return f"No matches found for '{pattern}' in {file_path}"
             else:
                 # Check if it's a regex error
-                if "invalid" in result.stderr.lower() or "unmatched" in result.stderr.lower():
+                if (
+                    "invalid" in result.stderr.lower()
+                    or "unmatched" in result.stderr.lower()
+                ):
                     return f"Invalid regex pattern '{pattern}'. Error: {result.stderr.strip()}"
                 return f"Error searching file: {result.stderr.strip()}"
 
@@ -639,15 +660,25 @@ def execute_tool(tool_name, arguments):
 
             # Use find command to search for files
             cmd = ["find", ".", "-name", pattern, "-type", "f"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, cwd=cwd)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10, cwd=cwd
+            )
 
             if result.returncode == 0:
-                files = result.stdout.strip().split('\n')
+                files = result.stdout.strip().split("\n")
                 files = [f for f in files if f]  # Remove empty strings
                 if len(files) > max_results:
                     files = files[:max_results]
-                    return '\n'.join(files) + f'\n... ({len(files)} results shown, more available)' + "\n"
-                return '\n'.join(files) if files else f"No files found matching pattern: {pattern}" + "\n"
+                    return (
+                        "\n".join(files)
+                        + f"\n... ({len(files)} results shown, more available)"
+                        + "\n"
+                    )
+                return (
+                    "\n".join(files)
+                    if files
+                    else f"No files found matching pattern: {pattern}" + "\n"
+                )
             else:
                 return f"Error finding files: {result.stderr.strip()}"
 
@@ -656,14 +687,14 @@ def execute_tool(tool_name, arguments):
             max_lines = arguments.get("max_lines", 100)
 
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     lines = []
                     for i, line in enumerate(f):
                         if i >= max_lines:
                             lines.append(f"... (truncated at {max_lines} lines)")
                             break
                         lines.append(line.rstrip())
-                    return '\n'.join(lines) + "\n"
+                    return "\n".join(lines) + "\n"
             except FileNotFoundError:
                 return f"File not found: {file_path}"
             except PermissionError:
@@ -694,21 +725,26 @@ def execute_tool(tool_name, arguments):
                 # Special handling for summary.md - prepend metadata automatically
                 # Check for both old (.vim-chatgpt) and new (.vim-llm-agent) directory names
                 # Note: We don't check bare 'summary.md' to avoid path resolution errors
-                if (file_path.endswith('.vim-chatgpt/summary.md') or
-                    file_path.endswith('.vim-llm-agent/summary.md')):
+                if file_path.endswith(".vim-chatgpt/summary.md") or file_path.endswith(
+                    ".vim-llm-agent/summary.md"
+                ):
                     # Calculate metadata values
                     from datetime import datetime
                     from chatgpt.utils import get_config
 
-                    # Get the recent history window size (default 20KB)
-                    recent_window = int(get_config('recent_history_size', '20480'))
+                    # Get the recent history window size (default 30KB to match config.vim and summary.py)
+                    recent_window = int(get_config("recent_history_size", "30480"))
+
+                    # Calculate history file path from the summary file's directory
+                    summary_dir = os.path.dirname(file_path)
+                    history_file = os.path.join(summary_dir, "history.txt")
 
                     # Get old cutoff from existing summary
                     old_cutoff = 0
                     if os.path.exists(file_path):
-                        with open(file_path, 'r', encoding='utf-8') as f:
+                        with open(file_path, "r", encoding="utf-8") as f:
                             summary_content = f.read()
-                            match = re.search(r'cutoff_byte:\s*(\d+)', summary_content)
+                            match = re.search(r"cutoff_byte:\s*(\d+)", summary_content)
                             if match:
                                 old_cutoff = int(match.group(1))
 
@@ -730,7 +766,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     content = metadata + content
 
                 # Write the file
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(content)
 
                 return f"Successfully created file: {file_path} ({len(content)} characters)"
@@ -756,10 +792,10 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 file_bufnr = vim.eval(f"bufnr('{abs_file_path}')")
 
                 # Check if buffer exists and is visible in a window
-                if file_bufnr != '-1':
+                if file_bufnr != "-1":
                     # Buffer exists - check if it's visible in a window
                     winnr = vim.eval(f"bufwinnr({file_bufnr})")
-                    if winnr != '-1':
+                    if winnr != "-1":
                         # File is already visible - switch to that window
                         vim.command(f"{winnr}wincmd w")
 
@@ -840,7 +876,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
 
             try:
                 # Read the file
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 # Check if old_content exists in the file
@@ -856,7 +892,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 new_file_content = content.replace(old_content, new_content, 1)
 
                 # Write back to the file
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(new_file_content)
 
                 return f"Successfully edited {file_path}: replaced {len(old_content)} characters with {len(new_content)} characters"
@@ -881,12 +917,14 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
             try:
                 # Validate line numbers
                 if start_line < 1:
-                    return f"Invalid start_line: {start_line}. Line numbers must be >= 1."
+                    return (
+                        f"Invalid start_line: {start_line}. Line numbers must be >= 1."
+                    )
                 if end_line < start_line:
                     return f"Invalid line range: end_line ({end_line}) must be >= start_line ({start_line})."
 
                 # Read all lines from the file
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
 
                 total_lines = len(lines)
@@ -903,13 +941,15 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
 
                 # Log what will be replaced for debugging
                 lines_to_replace_count = end_line - start_line + 1
-                debug_log(f"edit_file_lines: Replacing {lines_to_replace_count} line(s) from line {start_line} to {end_line} (inclusive) in {file_path}")
+                debug_log(
+                    f"edit_file_lines: Replacing {lines_to_replace_count} line(s) from line {start_line} to {end_line} (inclusive) in {file_path}"
+                )
 
                 # Prepare new content lines
                 # Handle the case where content ends with \n (split creates empty string at end)
-                new_lines = new_content.split('\n') if new_content else []
+                new_lines = new_content.split("\n") if new_content else []
                 # Remove trailing empty string if content ended with newline
-                if new_lines and new_lines[-1] == '':
+                if new_lines and new_lines[-1] == "":
                     new_lines = new_lines[:-1]
                     content_had_trailing_newline = True
                 else:
@@ -918,7 +958,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 # Build formatted lines with proper newline handling
                 new_lines_formatted = []
                 for i, line in enumerate(new_lines):
-                    is_last_line = (i == len(new_lines) - 1)
+                    is_last_line = i == len(new_lines) - 1
 
                     if is_last_line:
                         # For the last line, add newline based on context:
@@ -927,22 +967,26 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                         # 3. If content had trailing newline, preserve it
                         if end_idx < total_lines - 1:
                             # Replacing lines in the middle - always add newline
-                            new_lines_formatted.append(line + '\n')
-                        elif content_had_trailing_newline or (end_idx == total_lines - 1 and lines[end_idx].endswith('\n')):
+                            new_lines_formatted.append(line + "\n")
+                        elif content_had_trailing_newline or (
+                            end_idx == total_lines - 1 and lines[end_idx].endswith("\n")
+                        ):
                             # At end of file, but either content or original had trailing newline
-                            new_lines_formatted.append(line + '\n')
+                            new_lines_formatted.append(line + "\n")
                         else:
                             # At end of file, no trailing newline
                             new_lines_formatted.append(line)
                     else:
                         # Not the last line - always add newline
-                        new_lines_formatted.append(line + '\n')
+                        new_lines_formatted.append(line + "\n")
 
                 # Build the new file content
-                new_file_lines = lines[:start_idx] + new_lines_formatted + lines[end_idx + 1:]
+                new_file_lines = (
+                    lines[:start_idx] + new_lines_formatted + lines[end_idx + 1 :]
+                )
 
                 # Write back to the file
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.writelines(new_file_lines)
 
                 lines_replaced = end_idx - start_idx + 1
@@ -966,7 +1010,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     capture_output=True,
                     text=True,
                     timeout=10,
-                    cwd=os.getcwd()
+                    cwd=os.getcwd(),
                 )
                 if result.returncode == 0:
                     info_parts.append("=== Git Status ===")
@@ -981,7 +1025,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                         capture_output=True,
                         text=True,
                         timeout=10,
-                        cwd=os.getcwd()
+                        cwd=os.getcwd(),
                     )
                     if log_result.returncode == 0:
                         info_parts.append("\n=== Recent Commits ===")
@@ -1007,11 +1051,15 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                         capture_output=True,
                         text=True,
                         timeout=10,
-                        cwd=os.getcwd()
+                        cwd=os.getcwd(),
                     )
                     if status_result.returncode == 0:
                         info_parts.append("=== Git Status (short) ===")
-                        info_parts.append(status_result.stdout if status_result.stdout.strip() else "No changes")
+                        info_parts.append(
+                            status_result.stdout
+                            if status_result.stdout.strip()
+                            else "No changes"
+                        )
                 except Exception:
                     pass  # Silently skip if status fails
 
@@ -1023,11 +1071,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     cmd.append(file_path)
 
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    cwd=os.getcwd()
+                    cmd, capture_output=True, text=True, timeout=30, cwd=os.getcwd()
                 )
 
                 if result.returncode == 0:
@@ -1057,15 +1101,13 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     cmd.append(file_path)
 
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    cwd=os.getcwd()
+                    cmd, capture_output=True, text=True, timeout=10, cwd=os.getcwd()
                 )
 
                 if result.returncode == 0:
-                    return result.stdout if result.stdout.strip() else "No commits found."
+                    return (
+                        result.stdout if result.stdout.strip() else "No commits found."
+                    )
                 else:
                     return f"Git error: {result.stderr}"
             except Exception as e:
@@ -1080,7 +1122,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     capture_output=True,
                     text=True,
                     timeout=30,
-                    cwd=os.getcwd()
+                    cwd=os.getcwd(),
                 )
 
                 if result.returncode == 0:
@@ -1100,11 +1142,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     cmd = ["git", "branch", "--show-current"]
 
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    cwd=os.getcwd()
+                    cmd, capture_output=True, text=True, timeout=5, cwd=os.getcwd()
                 )
 
                 if result.returncode == 0:
@@ -1126,11 +1164,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 # Run git add
                 cmd = ["git", "add"] + files
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    cwd=os.getcwd()
+                    cmd, capture_output=True, text=True, timeout=30, cwd=os.getcwd()
                 )
 
                 if result.returncode == 0:
@@ -1144,11 +1178,15 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                             capture_output=True,
                             text=True,
                             timeout=10,
-                            cwd=os.getcwd()
+                            cwd=os.getcwd(),
                         )
                         if status_result.returncode == 0:
                             info_parts.append("\n=== Updated Status ===")
-                            info_parts.append(status_result.stdout if status_result.stdout.strip() else "No changes")
+                            info_parts.append(
+                                status_result.stdout
+                                if status_result.stdout.strip()
+                                else "No changes"
+                            )
                     except Exception:
                         pass  # Silently skip if status fails
 
@@ -1171,11 +1209,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     success_msg = "Successfully unstaged all files."
 
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    cwd=os.getcwd()
+                    cmd, capture_output=True, text=True, timeout=10, cwd=os.getcwd()
                 )
 
                 if result.returncode == 0:
@@ -1202,7 +1236,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     capture_output=True,
                     text=True,
                     timeout=10,
-                    cwd=os.getcwd()
+                    cwd=os.getcwd(),
                 )
                 if status_result.returncode == 0:
                     info_parts.append("=== Git Status ===")
@@ -1217,7 +1251,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     capture_output=True,
                     text=True,
                     timeout=30,
-                    cwd=os.getcwd()
+                    cwd=os.getcwd(),
                 )
                 if diff_result.returncode == 0 and diff_result.stdout.strip():
                     info_parts.append("\n=== Staged Changes (will be committed) ===")
@@ -1235,7 +1269,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     capture_output=True,
                     text=True,
                     timeout=10,
-                    cwd=os.getcwd()
+                    cwd=os.getcwd(),
                 )
                 if log_result.returncode == 0:
                     info_parts.append("\n=== Recent Commits ===")
@@ -1252,11 +1286,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     cmd.extend(["-m", message])
 
                 result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    cwd=os.getcwd()
+                    cmd, capture_output=True, text=True, timeout=30, cwd=os.getcwd()
                 )
 
                 if result.returncode == 0:
@@ -1268,10 +1298,14 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                     stderr = result.stderr
                     if "nothing to commit" in stderr:
                         info_parts.append("\n=== Commit Result ===")
-                        info_parts.append("Error: No changes staged for commit. Use git_add first.")
+                        info_parts.append(
+                            "Error: No changes staged for commit. Use git_add first."
+                        )
                     elif "no changes added to commit" in stderr:
                         info_parts.append("\n=== Commit Result ===")
-                        info_parts.append("Error: No changes staged for commit. Use git_add first.")
+                        info_parts.append(
+                            "Error: No changes staged for commit. Use git_add first."
+                        )
                     else:
                         info_parts.append("\n=== Commit Result ===")
                         info_parts.append(f"Git error: {stderr}")
