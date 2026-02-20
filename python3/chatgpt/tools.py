@@ -688,7 +688,10 @@ def execute_tool(tool_name, arguments):
                     os.makedirs(directory)
 
                 # Special handling for summary.md - prepend metadata automatically
-                if file_path.endswith('.vim-chatgpt/summary.md') or file_path.endswith('summary.md'):
+                # Check for both old (.vim-chatgpt) and new (.vim-llm-agent) directory names
+                if (file_path.endswith('.vim-chatgpt/summary.md') or
+                    file_path.endswith('.vim-llm-agent/summary.md') or
+                    file_path.endswith('summary.md')):
                     # Calculate metadata values
                     from datetime import datetime
                     from chatgpt.utils import safe_vim_eval

@@ -20,6 +20,8 @@ from chatgpt.utils import (
     save_to_history,
     save_plan,
     load_plan,
+    get_config,
+    get_project_dir,
     format_box,
     format_separator,
     format_tool_call,
@@ -257,9 +259,10 @@ class TestSavePlan:
     @patch('os.getcwd')
     @patch('builtins.open', new_callable=mock_open)
     def test_saves_plan_to_file(self, mock_file, mock_getcwd, mock_makedirs, mock_exists, mock_vim):
-        """Test that save_plan writes plan to .vim-chatgpt/plan.md"""
+        """Test that save_plan writes plan to plan.md in project directory"""
         mock_vim.eval.return_value = '1'  # Session mode enabled
         mock_getcwd.return_value = '/test/project'
+        # get_project_dir will check for directories, return True so it uses .vim-llm-agent
         mock_exists.return_value = True
 
         plan_content = """GOAL: Test the feature
@@ -270,8 +273,8 @@ PLAN:
 
         save_plan(plan_content)
 
-        # Verify file was opened for writing
-        mock_file.assert_called_once_with('/test/project/.vim-chatgpt/plan.md', 'w', encoding='utf-8')
+        # Verify file was opened for writing - using new directory name
+        mock_file.assert_called_once_with('/test/project/.vim-llm-agent/plan.md', 'w', encoding='utf-8')
 
         # Verify content was written with metadata
         handle = mock_file()
@@ -285,16 +288,17 @@ PLAN:
     @patch('os.makedirs')
     @patch('os.getcwd')
     def test_creates_directory_if_not_exists(self, mock_getcwd, mock_makedirs, mock_exists, mock_vim):
-        """Test that save_plan creates .vim-chatgpt directory if needed"""
+        """Test that save_plan creates project directory if needed"""
         mock_vim.eval.return_value = '1'  # Session mode enabled
         mock_getcwd.return_value = '/test/project'
+        # get_project_dir will check for both directories, both don't exist
         mock_exists.return_value = False
 
         with patch('builtins.open', mock_open()):
             save_plan("Test plan")
 
-        # Verify directory was created
-        mock_makedirs.assert_called_once_with('/test/project/.vim-chatgpt')
+        # Verify directory was created - using new directory name
+        mock_makedirs.assert_called_once_with('/test/project/.vim-llm-agent')
 
     @patch('chatgpt.utils.vim')
     def test_skips_when_session_disabled(self, mock_vim):
@@ -335,12 +339,13 @@ PLAN:
     def test_loads_plan_from_file(self, mock_file, mock_exists, mock_getcwd):
         """Test that load_plan reads and parses plan.md"""
         mock_getcwd.return_value = '/test/project'
+        # When neither directory exists, get_project_dir() returns .vim-llm-agent
         mock_exists.return_value = True
 
         result = load_plan()
 
-        # Verify file was opened for reading
-        mock_file.assert_called_once_with('/test/project/.vim-chatgpt/plan.md', 'r', encoding='utf-8')
+        # Verify file was opened for reading - using new directory name
+        mock_file.assert_called_once_with('/test/project/.vim-llm-agent/plan.md', 'r', encoding='utf-8')
 
         # Verify metadata was stripped
         assert 'Plan saved at:' not in result
@@ -352,6 +357,8 @@ PLAN:
     def test_returns_none_when_file_not_exists(self, mock_exists, mock_getcwd):
         """Test that load_plan returns None when plan.md doesn't exist"""
         mock_getcwd.return_value = '/test/project'
+        # get_project_dir checks for .vim-llm-agent and .vim-chatgpt directories
+        # os.path.exists will be called multiple times, return False for all
         mock_exists.return_value = False
 
         result = load_plan()
@@ -364,9 +371,128 @@ PLAN:
     def test_handles_read_errors_gracefully(self, mock_file, mock_exists, mock_getcwd):
         """Test that load_plan handles read errors without crashing"""
         mock_getcwd.return_value = '/test/project'
+        # get_project_dir will check directories, plan file exists but can't be read
         mock_exists.return_value = True
 
         result = load_plan()
 
         # Should return None on error
         assert result is None
+
+
+class TestGetConfig:
+    """Tests for get_config function (backwards compatibility)"""
+
+    @patch('chatgpt.utils.vim')
+    def test_uses_new_config_when_available(self, mock_vim):
+        """Test that new config variable takes precedence"""
+        # Setup: both old and new exist
+        def eval_side_effect(expr):
+            if 'g:llm_agent_model' in expr:
+                return 'claude-3-5-sonnet'
+            elif 'g:chat_gpt_model' in expr:
+                return 'gpt-4'
+            return ''
+        
+        mock_vim.eval.side_effect = eval_side_effect
+        
+        result = get_config('model')
+        
+        # Should use new value
+        assert result == 'claude-3-5-sonnet'
+
+    @patch('chatgpt.utils.vim')
+    def test_falls_back_to_old_config(self, mock_vim):
+        """Test fallback to old config variable"""
+        # Setup: only old exists
+        def eval_side_effect(expr):
+            if 'g:llm_agent_model' in expr:
+                return ''
+            elif 'g:chat_gpt_model' in expr:
+                return 'gpt-4'
+            return ''
+        
+        mock_vim.eval.side_effect = eval_side_effect
+        
+        result = get_config('model')
+        
+        # Should use old value
+        assert result == 'gpt-4'
+
+    @patch('chatgpt.utils.vim')
+    def test_returns_default_when_neither_exists(self, mock_vim):
+        """Test default value when neither config exists"""
+        mock_vim.eval.return_value = ''
+        
+        result = get_config('model', 'default-model')
+        
+        # Should use default
+        assert result == 'default-model'
+
+    @patch('chatgpt.utils.vim')
+    def test_returns_none_when_no_default(self, mock_vim):
+        """Test None return when neither exists and no default"""
+        mock_vim.eval.return_value = ''
+        
+        result = get_config('model')
+        
+        # Should return None
+        assert result is None
+
+
+class TestGetProjectDir:
+    """Tests for get_project_dir function (backwards compatibility)"""
+
+    @patch('os.getcwd')
+    @patch('os.path.exists')
+    def test_uses_new_directory_when_exists(self, mock_exists, mock_getcwd):
+        """Test that new directory is used when it exists"""
+        mock_getcwd.return_value = '/test/project'
+        
+        # Both directories exist
+        def exists_side_effect(path):
+            if '.vim-llm-agent' in path:
+                return True
+            elif '.vim-chatgpt' in path:
+                return True
+            return False
+        
+        mock_exists.side_effect = exists_side_effect
+        
+        result = get_project_dir()
+        
+        # Should use new directory
+        assert result == '/test/project/.vim-llm-agent'
+
+    @patch('os.getcwd')
+    @patch('os.path.exists')
+    def test_falls_back_to_old_directory(self, mock_exists, mock_getcwd):
+        """Test fallback to old directory when new doesn't exist"""
+        mock_getcwd.return_value = '/test/project'
+        
+        # Only old directory exists
+        def exists_side_effect(path):
+            if '.vim-llm-agent' in path:
+                return False
+            elif '.vim-chatgpt' in path:
+                return True
+            return False
+        
+        mock_exists.side_effect = exists_side_effect
+        
+        result = get_project_dir()
+        
+        # Should use old directory for backwards compatibility
+        assert result == '/test/project/.vim-chatgpt'
+
+    @patch('os.getcwd')
+    @patch('os.path.exists')
+    def test_returns_new_when_neither_exists(self, mock_exists, mock_getcwd):
+        """Test that new directory name is returned when neither exists"""
+        mock_getcwd.return_value = '/test/project'
+        mock_exists.return_value = False
+        
+        result = get_project_dir()
+        
+        # Should return new directory name (will be created)
+        assert result == '/test/project/.vim-llm-agent'

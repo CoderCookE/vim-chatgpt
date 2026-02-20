@@ -16,12 +16,12 @@ def get_summary_cutoff(project_dir):
     Extract cutoff byte position from summary metadata.
 
     Args:
-        project_dir: Project directory path
+        project_dir: Project data directory path
 
     Returns:
         int: Byte position where last summary ended
     """
-    summary_file = os.path.join(project_dir, '.vim-chatgpt', 'summary.md')
+    summary_file = os.path.join(project_dir, 'summary.md')
 
     if not os.path.exists(summary_file):
         return 0
@@ -58,9 +58,10 @@ def generate_conversation_summary():
     debug_log("INFO: Starting conversation summary generation")
 
     # Get project directory and file paths
-    project_dir = os.getcwd()
-    history_file = os.path.join(project_dir, '.vim-chatgpt', 'history.txt')
-    summary_file = os.path.join(project_dir, '.vim-chatgpt', 'summary.md')
+    from chatgpt.utils import get_project_dir
+    project_dir = get_project_dir()
+    history_file = os.path.join(project_dir, 'history.txt')
+    summary_file = os.path.join(project_dir, 'summary.md')
 
     # Check if history exists
     if not os.path.exists(history_file):
@@ -154,11 +155,12 @@ def generate_conversation_summary():
     prompt += "\n\n## Action Items"
     prompt += "\n[Any pending tasks or future work mentioned]"
     prompt += "\n\nNOTE: If there was an active plan during this conversation, DO NOT include it in the summary. "
-    prompt += "Plans are persisted separately in .vim-chatgpt/plan.md and will be loaded automatically."
+    prompt += "Plans are persisted separately in plan.md and will be loaded automatically."
 
     # IMPORTANT: Ask the AI to save the file using the create_file tool
     # This ensures the metadata header gets added properly by the tool
-    prompt += f"\n\nSave the summary to .vim-chatgpt/summary.md using the create_file tool with overwrite=true."
+    # Use relative path that works with both old (.vim-chatgpt) and new (.vim-llm-agent) directories
+    prompt += f"\n\nSave the summary to summary.md in the project directory using the create_file tool with overwrite=true."
 
     debug_log(f"INFO: Generating summary for {bytes_to_summarize} bytes of conversation")
 

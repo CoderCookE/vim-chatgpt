@@ -147,7 +147,21 @@ Previous conversation summary"""
 
         summary_file = tmp_path / '.vim-chatgpt' / 'summary.md'
 
-        mock_exists.side_effect = lambda p: p == str(summary_file)
+        # Mock exists to support get_project_dir() backwards compatibility check
+        # Returns True for .vim-chatgpt directory and summary.md file
+        def exists_side_effect(p):
+            p_str = str(p)
+            # get_project_dir checks for both directories
+            if p_str == str(tmp_path / '.vim-llm-agent'):
+                return False
+            if p_str == str(tmp_path / '.vim-chatgpt'):
+                return True
+            # Then checks for summary.md file
+            if p_str == str(summary_file):
+                return True
+            return False
+
+        mock_exists.side_effect = exists_side_effect
 
         with patch('builtins.open', mock_open(read_data=summary_content)):
             chat_gpt("Test prompt")

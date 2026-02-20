@@ -14,6 +14,68 @@ def safe_vim_eval(expression):
         return None
 
 
+def get_config(name, default=None):
+    """
+    Get configuration value with automatic fallback from old to new names.
+
+    Supports backwards compatibility by checking:
+    1. New name: g:llm_agent_{name}
+    2. Old name: g:chat_gpt_{name}
+    3. Default value
+
+    Args:
+        name: Config variable name (without prefix)
+        default: Default value if neither variable exists
+
+    Returns:
+        Configuration value or default
+
+    Examples:
+        get_config('api_key') checks g:llm_agent_api_key then g:chat_gpt_api_key
+        get_config('model', 'gpt-4') returns 'gpt-4' if neither is set
+    """
+    # Try new name first
+    new_var = f'g:llm_agent_{name}'
+    new_val = safe_vim_eval(f'exists("{new_var}") ? {new_var} : ""')
+    if new_val and new_val != '':
+        return new_val
+
+    # Fall back to old name
+    old_var = f'g:chat_gpt_{name}'
+    old_val = safe_vim_eval(f'exists("{old_var}") ? {old_var} : ""')
+    if old_val and old_val != '':
+        return old_val
+
+    # Return default
+    return default
+
+
+def get_project_dir():
+    """
+    Get the project data directory with automatic fallback.
+
+    Checks for:
+    1. .vim-llm-agent/ (new name)
+    2. .vim-chatgpt/ (old name, for backwards compatibility)
+
+    Returns:
+        str: Directory name to use (.vim-llm-agent or .vim-chatgpt)
+    """
+    new_dir = os.path.join(os.getcwd(), '.vim-llm-agent')
+    old_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
+
+    # If new directory exists, use it
+    if os.path.exists(new_dir):
+        return new_dir
+
+    # If old directory exists, use it (backwards compatibility)
+    if os.path.exists(old_dir):
+        return old_dir
+
+    # Neither exists - return new name (will be created)
+    return new_dir
+
+
 # Log level constants
 LOG_LEVEL_DEBUG = 0
 LOG_LEVEL_INFO = 1
@@ -79,11 +141,11 @@ def save_to_history(content):
         if not session_enabled:
             return
 
-        vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
-        history_file = os.path.join(vim_chatgpt_dir, 'history.txt')
+        project_dir = get_project_dir()
+        history_file = os.path.join(project_dir, 'history.txt')
 
-        if not os.path.exists(vim_chatgpt_dir):
-            os.makedirs(vim_chatgpt_dir)
+        if not os.path.exists(project_dir):
+            os.makedirs(project_dir)
 
         with open(history_file, 'a', encoding='utf-8') as f:
             f.write(content)
@@ -93,7 +155,7 @@ def save_to_history(content):
 
 def save_plan(plan_content):
     """
-    Save the approved plan to .vim-chatgpt/plan.md
+    Save the approved plan to plan.md in the project directory
 
     This ensures the plan persists across conversation compactions and sessions.
 
@@ -106,11 +168,11 @@ def save_plan(plan_content):
             debug_log("INFO: Session mode disabled, not saving plan")
             return
 
-        vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
-        plan_file = os.path.join(vim_chatgpt_dir, 'plan.md')
+        project_dir = get_project_dir()
+        plan_file = os.path.join(project_dir, 'plan.md')
 
-        if not os.path.exists(vim_chatgpt_dir):
-            os.makedirs(vim_chatgpt_dir)
+        if not os.path.exists(project_dir):
+            os.makedirs(project_dir)
 
         # Add metadata header
         from datetime import datetime
@@ -131,13 +193,13 @@ def save_plan(plan_content):
 
 def load_plan():
     """
-    Load the saved plan from .vim-chatgpt/plan.md
+    Load the saved plan from plan.md in the project directory
 
     Returns:
         str: The plan content, or None if no plan exists
     """
     try:
-        plan_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'plan.md')
+        plan_file = os.path.join(get_project_dir(), 'plan.md')
 
         if not os.path.exists(plan_file):
             return None

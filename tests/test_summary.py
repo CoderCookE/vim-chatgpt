@@ -25,7 +25,9 @@ class TestGetSummaryCutoff:
 
     def test_returns_zero_when_no_summary_exists(self, tmp_path):
         """Should return 0 if summary file doesn't exist"""
-        result = get_summary_cutoff(str(tmp_path))
+        # When summary doesn't exist, return 0
+        summary_dir = tmp_path / '.vim-chatgpt'
+        result = get_summary_cutoff(str(summary_dir))
         assert result == 0
 
     def test_extracts_cutoff_from_metadata(self, tmp_path):
@@ -44,7 +46,8 @@ Previous conversation summary"""
 
         summary_file.write_text(summary_content)
 
-        result = get_summary_cutoff(str(tmp_path))
+        # get_summary_cutoff now expects the project directory path, not root
+        result = get_summary_cutoff(str(summary_dir))
         assert result == 12345
 
     def test_handles_missing_metadata(self, tmp_path):
@@ -55,7 +58,8 @@ Previous conversation summary"""
 
         summary_file.write_text("# Summary\nNo metadata here")
 
-        result = get_summary_cutoff(str(tmp_path))
+        # get_summary_cutoff now expects the project directory path, not root
+        result = get_summary_cutoff(str(summary_dir))
         assert result == 0
 
     def test_handles_malformed_metadata(self, tmp_path):
@@ -69,7 +73,7 @@ cutoff_byte: not_a_number
 -->"""
         summary_file.write_text(summary_content)
 
-        result = get_summary_cutoff(str(tmp_path))
+        result = get_summary_cutoff(str(summary_dir))
         assert result == 0
 
     def test_handles_file_read_errors(self, tmp_path):
@@ -83,7 +87,7 @@ cutoff_byte: not_a_number
         os.chmod(summary_file, 0o000)
 
         try:
-            result = get_summary_cutoff(str(tmp_path))
+            result = get_summary_cutoff(str(summary_dir))
             assert result == 0
         finally:
             # Restore permissions for cleanup

@@ -1,13 +1,22 @@
-# ChatGPT Vim Plugin
+# vim-llm-agent
 
-This Vim plugin brings the power of AI language models into your Vim editor, enabling you to request code explanations or improvements directly within Vim. With this plugin, you can effortlessly highlight code snippets and ask AI to explain, review, or rewrite them, with the option to include additional context for better results.
+A full-featured LLM agent for Vim with multi-provider support and autonomous tool execution capabilities.
+
+This plugin brings the power of AI language models and agentic workflows directly into your Vim editor. Go beyond simple chat - the agent can autonomously execute file operations, git commands, and complex multi-step tasks with plan approval and tool calling.
+
+**Key Features:**
+- 🤖 **Agentic Workflows** - Plan approval system with autonomous tool execution
+- 🔧 **Tool Calling** - File operations, git integration, project exploration
+- 💬 **Context-Aware** - Session persistence, conversation summaries, project context
+- 🔄 **Multi-Provider** - OpenAI, Anthropic (Claude), Google (Gemini), Ollama, OpenRouter
+- 📝 **Code Intelligence** - Explain, review, refactor code with visual selections
 
 **Supported Providers:**
-- OpenAI (ChatGPT, GPT-4, etc.)
-- Anthropic (Claude)
-- Gemini (Google)
-- Ollama (local models)
-- OpenRouter (unified API for multiple providers)
+- OpenAI (ChatGPT, GPT-4, GPT-4o, etc.)
+- Anthropic (Claude 3.5 Sonnet, Claude 3 Opus, etc.)
+- Google (Gemini)
+- Ollama (local models - Llama, Mistral, etc.)
+- OpenRouter (unified API for 100+ models)
 
 ## Prerequisites
 

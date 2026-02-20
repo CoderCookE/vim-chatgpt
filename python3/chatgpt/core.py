@@ -76,7 +76,9 @@ def chat_gpt(prompt):
     system_message += f"{personas[persona]} {resp}"
 
     # Load project context if available
-    context_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'context.md')
+    from chatgpt.utils import get_project_dir
+    project_dir = get_project_dir()
+    context_file = os.path.join(project_dir, 'context.md')
     if os.path.exists(context_file):
         try:
             with open(context_file, 'r', encoding='utf-8') as f:
@@ -88,7 +90,7 @@ def chat_gpt(prompt):
             pass
 
     # Load conversation summary if available and extract cutoff position
-    summary_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'summary.md')
+    summary_file = os.path.join(project_dir, 'summary.md')
     summary_cutoff_byte = 0
     if os.path.exists(summary_file):
         try:
@@ -187,16 +189,15 @@ CRITICAL EXECUTION RULES:
     session_mode_val = safe_vim_eval('g:chat_gpt_session_mode') or '1'
     debug_log(f"DEBUG: session_enabled = {session_enabled}, g:chat_gpt_session_mode = {session_mode_val}")
 
-    # Create .vim-chatgpt directory if it doesn't exist
-    vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
-    if session_enabled and not os.path.exists(vim_chatgpt_dir):
+    # Create project directory if it doesn't exist
+    if session_enabled and not os.path.exists(project_dir):
         try:
-            os.makedirs(vim_chatgpt_dir)
+            os.makedirs(project_dir)
         except:
             pass
 
     # Use file-based history
-    history_file = os.path.join(vim_chatgpt_dir, 'history.txt') if session_enabled else None
+    history_file = os.path.join(project_dir, 'history.txt') if session_enabled else None
     session_id = 'gpt-persistent-session' if session_enabled else None
 
     # Load history from file
