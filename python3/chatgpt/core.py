@@ -60,16 +60,20 @@ def chat_gpt(prompt):
     suppress_display = int(get_config('suppress_display', '0'))
 
     # Get model from provider
+    # Get model from provider
     model = provider.get_model()
 
-    # Build system message
+    # Build system message with persona
     personas = vim.eval('g:gpt_personas')  # Keep this as vim.eval since it's a dict
     persona = get_config('persona', 'default')
+    
+    # Get the persona's system prompt
+    persona_prompt = personas.get(persona, personas.get('default', ''))
+    system_message = persona_prompt
+    
     enable_tools = int(get_config('enable_tools', '1'))
     if enable_tools and provider.supports_tools():
-        system_message = "CRITICAL: You have function/tool calling capability via the API. When you need to use a tool, you MUST use the API's native tool calling feature. NEVER write text that describes or mimics tool usage. The system handles all tool execution automatically.\n\n"
-    else:
-        system_message = ""
+        system_message += "\n\nCRITICAL: You have function/tool calling capability via the API. When you need to use a tool, you MUST use the API's native tool calling feature. NEVER write text that describes or mimics tool usage. The system handles all tool execution automatically.\n\n"
 
     # Load project context if available
     from chatgpt.utils import get_project_dir
@@ -368,17 +372,18 @@ CRITICAL EXECUTION RULES:
                     # Ask for approval
                     if not suppress_display:
                         approval_prompt_msg = "\n\n" + "="*70 + "\n"
-                        approval_prompt_msg += "Plan presented above. Approve? [y]es to proceed, [n]o to cancel, [r]evise for changes: "
+                        approval_prompt_msg += "Plan presented above.\n"
                         vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_prompt_msg.replace("'", "''"), chunk_session_id))
                         vim.command("redraw!")
 
-                        approval = vim.eval("input('')")
+                        # Use inputlist() for better input handling
+                        approval_choice = int(vim.eval("inputlist(['', 'Select an option:', '1. Approve and proceed', '2. Cancel plan', '3. Request revisions', '', 'Enter number (1-3): '])"))
 
-                        if approval.lower() in ['n', 'no']:
+                        if approval_choice == 2 or approval_choice == 0:  # 2 = Cancel, 0 = ESC
                             cancel_msg = "\n\nL Plan cancelled by user.\n"
                             vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(cancel_msg.replace("'", "''"), chunk_session_id))
                             break
-                        elif approval.lower() in ['r', 'revise']:
+                        elif approval_choice == 3:  # 3 = Request revisions
                             revise_msg = "\n\n= User requested plan revision.\n"
                             vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(revise_msg.replace("'", "''"), chunk_session_id))
                             revision_request = vim.eval("input('What changes would you like? ')")
@@ -401,7 +406,7 @@ CRITICAL EXECUTION RULES:
                                 })
 
                             continue  # Go to next iteration with revision request
-                        else:
+                        else:  # approval_choice == 1 (Approve and proceed)
                             # Approved - proceed with execution
                             plan_approved = True
                             in_planning_phase = False

@@ -180,7 +180,7 @@ def get_tool_definitions():
         },
         {
             "name": "edit_file_lines",
-            "description": "Edit specific lines in a file by line number. More efficient for large files. Line numbers are 1-indexed.",
+            "description": "Edit specific lines in a file by line number. More efficient for large files. Line numbers are 1-indexed. IMPORTANT: Both start_line and end_line are INCLUSIVE - they specify the exact lines to replace. Example: start_line=5, end_line=7 replaces lines 5, 6, AND 7 (three lines total). To replace a single line, use the same number for both (e.g., start_line=5, end_line=5).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -190,15 +190,15 @@ def get_tool_definitions():
                     },
                     "start_line": {
                         "type": "integer",
-                        "description": "Starting line number (1-indexed, inclusive)"
+                        "description": "Starting line number (1-indexed, INCLUSIVE). This line WILL be replaced. Example: start_line=5 means line 5 will be included in the replacement."
                     },
                     "end_line": {
                         "type": "integer",
-                        "description": "Ending line number (1-indexed, inclusive). Use same as start_line to replace a single line."
+                        "description": "Ending line number (1-indexed, INCLUSIVE). This line WILL be replaced. Must be >= start_line. Example: end_line=7 means line 7 will be included in the replacement. To replace only line 5, use start_line=5 and end_line=5."
                     },
                     "new_content": {
                         "type": "string",
-                        "description": "The new content to replace the specified line range. Can be multiple lines separated by newlines."
+                        "description": "The new content to replace the specified line range. Can be multiple lines separated by newlines. This content will replace ALL lines from start_line to end_line (inclusive)."
                     }
                 },
                 "required": ["file_path", "start_line", "end_line", "new_content"]
@@ -901,6 +901,10 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
                 start_idx = start_line - 1
                 end_idx = end_line - 1
 
+                # Log what will be replaced for debugging
+                lines_to_replace_count = end_line - start_line + 1
+                debug_log(f"edit_file_lines: Replacing {lines_to_replace_count} line(s) from line {start_line} to {end_line} (inclusive) in {file_path}")
+
                 # Prepare new content lines
                 # Handle the case where content ends with \n (split creates empty string at end)
                 new_lines = new_content.split('\n') if new_content else []
@@ -943,7 +947,7 @@ last_updated: {datetime.now().strftime('%Y-%m-%d')}
 
                 lines_replaced = end_idx - start_idx + 1
                 lines_added = len(new_lines_formatted)
-                return f"Successfully edited {file_path}: replaced lines {start_line}-{end_line} ({lines_replaced} lines) with {lines_added} lines"
+                return f"Successfully edited {file_path}: replaced lines {start_line} through {end_line} inclusive ({lines_replaced} line(s) removed, {lines_added} line(s) added)"
             except FileNotFoundError:
                 return f"File not found: {file_path}"
             except PermissionError:
