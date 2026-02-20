@@ -106,6 +106,12 @@ def chat_gpt(prompt):
             # Silently ignore errors reading summary file
             pass
 
+    # Load active plan if available
+    from chatgpt.utils import load_plan
+    active_plan = load_plan()
+    if active_plan:
+        system_message += f"\n\n## Current Active Plan\n\nYou previously created and the user approved this plan. Continue executing it:\n\n{active_plan}"
+
     # Add planning instruction if tools are enabled and plan approval required
     enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
     require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
@@ -407,6 +413,10 @@ CRITICAL EXECUTION RULES:
                             # Approved - proceed with execution
                             plan_approved = True
                             in_planning_phase = False
+
+                            # Save the approved plan to disk so it persists across compactions
+                            from chatgpt.utils import save_plan
+                            save_plan(accumulated_content)
                             approval_msg = "\n\n Plan approved! Proceeding with execution...\n\n"
                             vim.command("call DisplayChatGPTResponse('{0}', '', '{1}')".format(approval_msg.replace("'", "''"), chunk_session_id))
 

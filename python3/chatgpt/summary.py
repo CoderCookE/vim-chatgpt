@@ -153,6 +153,8 @@ def generate_conversation_summary():
     prompt += "\n- Project-specific conventions"
     prompt += "\n\n## Action Items"
     prompt += "\n[Any pending tasks or future work mentioned]"
+    prompt += "\n\nNOTE: If there was an active plan during this conversation, DO NOT include it in the summary. "
+    prompt += "Plans are persisted separately in .vim-chatgpt/plan.md and will be loaded automatically."
 
     # IMPORTANT: Ask the AI to save the file using the create_file tool
     # This ensures the metadata header gets added properly by the tool
