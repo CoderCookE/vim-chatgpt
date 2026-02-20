@@ -415,6 +415,11 @@ def validate_file_path(file_path, operation="file operation"):
             # Escape special characters for Vim string
             prompt_msg_escaped = prompt_msg.replace("'", "''")
 
+            # Force a redraw to ensure the dialog is visible
+            vim.command("redraw")
+            vim.command("echo 'Waiting for security approval...'")
+            vim.command("redraw")
+
             # Call Vim's confirm() function
             # Returns: 1=Yes, 2=No
             result = int(vim.eval(f"confirm('{prompt_msg_escaped}', '&Yes\\n&No', 2)"))
@@ -492,6 +497,11 @@ def check_tool_approval(tool_name, arguments):
 
         # Escape special characters for Vim string
         prompt_msg_escaped = prompt_msg.replace("'", "''")
+
+        # Force a redraw and echo to ensure visibility
+        vim.command("redraw")
+        vim.command("echo 'Waiting for tool approval...'")
+        vim.command("redraw")
 
         # Prompt user with options
         # 1 = Allow Once
