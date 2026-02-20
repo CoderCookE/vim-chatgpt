@@ -55,13 +55,15 @@ function! chatgpt#context#check_and_generate() abort
         let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
 
         execute 'cd ' . fnameescape(project_dir)
 
-        " Disable session mode, plan approval, and suppress display for auto-generation
+        " Disable session mode, plan approval, tool approval, and suppress display for auto-generation
         let g:chat_gpt_session_mode = 0
         let g:chat_gpt_require_plan_approval = 0
+        let g:chat_gpt_require_tool_approval = 0
         let g:chat_gpt_suppress_display = 1
 
         call chatgpt#context#generate()
@@ -69,6 +71,7 @@ function! chatgpt#context#check_and_generate() abort
         " Restore settings and directory
         let g:chat_gpt_session_mode = save_session_mode
         let g:chat_gpt_require_plan_approval = save_plan_approval
+        let g:chat_gpt_require_tool_approval = save_tool_approval
         let g:chat_gpt_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     endif
@@ -110,9 +113,11 @@ function! chatgpt#context#generate() abort
   " Use session mode 0 for one-time response
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
   let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+  let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
   let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
   let g:chat_gpt_session_mode = 0
   let g:chat_gpt_require_plan_approval = 0
+  let g:chat_gpt_require_tool_approval = 0
   let g:chat_gpt_suppress_display = 1
 
   echo "Generating project context... (this will use AI tools to explore your project)"
@@ -121,6 +126,7 @@ function! chatgpt#context#generate() abort
   " Restore settings
   let g:chat_gpt_session_mode = save_session_mode
   let g:chat_gpt_require_plan_approval = save_plan_approval
+  let g:chat_gpt_require_tool_approval = save_tool_approval
   let g:chat_gpt_suppress_display = save_suppress_display
 
   echo "\nProject context generated at " . dir_name . "/context.md"

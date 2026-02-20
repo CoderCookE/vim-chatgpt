@@ -71,18 +71,21 @@ function! chatgpt#summary#check_and_update() abort
         let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
 
         execute 'cd ' . fnameescape(project_dir)
 
         let g:chat_gpt_session_mode = 0
         let g:chat_gpt_require_plan_approval = 0
+        let g:chat_gpt_require_tool_approval = 0
         let g:chat_gpt_suppress_display = 1
 
         call chatgpt#summary#generate()
 
         let g:chat_gpt_session_mode = save_session_mode
         let g:chat_gpt_require_plan_approval = save_plan_approval
+        let g:chat_gpt_require_tool_approval = save_tool_approval
         let g:chat_gpt_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     elseif !filereadable(summary_file) && file_size > 1024
@@ -91,18 +94,21 @@ function! chatgpt#summary#check_and_update() abort
         let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
+        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
 
         execute 'cd ' . fnameescape(project_dir)
 
         let g:chat_gpt_session_mode = 0
         let g:chat_gpt_require_plan_approval = 0
+        let g:chat_gpt_require_tool_approval = 0
         let g:chat_gpt_suppress_display = 1
 
         call chatgpt#summary#generate()
 
         let g:chat_gpt_session_mode = save_session_mode
         let g:chat_gpt_require_plan_approval = save_plan_approval
+        let g:chat_gpt_require_tool_approval = save_tool_approval
         let g:chat_gpt_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     endif
