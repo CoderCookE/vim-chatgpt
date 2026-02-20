@@ -9,7 +9,7 @@ import os
 import subprocess
 import re
 import vim
-from chatgpt.utils import debug_log, safe_vim_eval
+from chatgpt.utils import debug_log, safe_vim_eval, get_config
 
 
 # Session-level cache for approved tools
@@ -471,7 +471,7 @@ def check_tool_approval(tool_name, arguments):
     global _approved_tools
 
     # Check if tool approval is enabled (enabled by default for security)
-    require_approval = safe_vim_eval('exists("g:chat_gpt_require_tool_approval") ? g:chat_gpt_require_tool_approval : 1') or '1'
+    require_approval = get_config('require_tool_approval', '1')
     if require_approval == '0':
         return (True, None)
 
@@ -490,24 +490,18 @@ def check_tool_approval(tool_name, arguments):
         if len(args_str) > 100:
             args_str = args_str[:100] + "..."
 
-        # Build prompt message
-        prompt_msg = f"AI wants to use tool: {tool_name}\\n"
-        prompt_msg += f"Arguments: {args_str}\\n\\n"
-        prompt_msg += "Allow this tool?"
+        # Build prompt as a list for inputlist()
+        # Escape single quotes for Vim string literals
+        tool_name_escaped = tool_name.replace("'", "''")
+        args_str_escaped = args_str.replace("'", "''")
 
-        # Escape special characters for Vim string
-        prompt_msg_escaped = prompt_msg.replace("'", "''")
-
-        # Force a redraw and echo to ensure visibility
-        vim.command("redraw")
-        vim.command("echo 'Waiting for tool approval...'")
+        # Force a redraw to ensure visibility
         vim.command("redraw")
 
-        # Prompt user with options
-        # 1 = Allow Once
-        # 2 = Always Allow
-        # 3 = Deny
-        result = int(vim.eval(f"confirm('{prompt_msg_escaped}', '&Allow Once\\n&Always Allow\\n&Deny', 1)"))
+        # Use inputlist() which is more reliable for terminal input
+        # Returns the selected number (1, 2, 3) or 0 for cancel
+        vim_cmd = f"inputlist(['AI wants to use tool: {tool_name_escaped}', 'Arguments: {args_str_escaped}', '', 'Select an option:', '1. Allow Once', '2. Always Allow', '3. Deny', '', 'Enter number (1-3): '])"
+        result = int(vim.eval(vim_cmd))
 
         if result == 1:
             # Allow once - don't add to cache
@@ -704,10 +698,10 @@ def execute_tool(tool_name, arguments):
                     file_path.endswith('.vim-llm-agent/summary.md')):
                     # Calculate metadata values
                     from datetime import datetime
-                    from chatgpt.utils import safe_vim_eval
+                    from chatgpt.utils import get_config
 
-                    history_file = os.path.join(os.path.dirname(file_path), 'history.txt')
-                    recent_window = int(safe_vim_eval('g:chat_gpt_recent_history_size') or 20480)
+                    # Get the recent history window size (default 20KB)
+                    recent_window = int(get_config('recent_history_size', '20480'))
 
                     # Get old cutoff from existing summary
                     old_cutoff = 0

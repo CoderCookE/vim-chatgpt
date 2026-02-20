@@ -9,7 +9,7 @@ import os
 import json
 import requests
 
-from chatgpt.utils import safe_vim_eval, debug_log
+from chatgpt.utils import safe_vim_eval, debug_log, get_config
 
 
 # Provider abstraction layer for multi-provider support
@@ -640,13 +640,13 @@ def create_provider(provider_name):
     """Factory function to create the appropriate provider"""
 
     if provider_name == 'anthropic':
-        base_url = os.getenv('ANTHROPIC_BASE_URL') or safe_vim_eval('g:anthropic_base_url')
+        base_url = os.getenv('ANTHROPIC_BASE_URL') or get_config('anthropic_base_url')
         if not base_url:
             # Fallback to default if not set
             base_url = 'https://api.anthropic.com/v1'
         config = {
-            'api_key': os.getenv('ANTHROPIC_API_KEY') or safe_vim_eval('g:anthropic_api_key'),
-            'model': safe_vim_eval('g:anthropic_model') or 'claude-sonnet-4-5-20250929',
+            'api_key': os.getenv('ANTHROPIC_API_KEY') or get_config('anthropic_api_key'),
+            'model': get_config('anthropic_model') or 'claude-sonnet-4-5-20250929',
             'base_url': base_url
         }
         debug_log(f"DEBUG: Creating Anthropic provider with base_url={base_url}")
@@ -654,36 +654,35 @@ def create_provider(provider_name):
 
     elif provider_name == 'gemini':
         config = {
-            'api_key': os.getenv('GEMINI_API_KEY') or safe_vim_eval('g:gemini_api_key'),
-            'model': safe_vim_eval('g:gemini_model')
+            'api_key': os.getenv('GEMINI_API_KEY') or get_config('gemini_api_key'),
+            'model': get_config('gemini_model')
         }
         return GoogleProvider(config)
 
     elif provider_name == 'ollama':
         config = {
-            'base_url': os.getenv('OLLAMA_HOST') or safe_vim_eval('g:ollama_base_url'),
-            'model': safe_vim_eval('g:ollama_model')
+            'base_url': os.getenv('OLLAMA_HOST') or get_config('ollama_base_url'),
+            'model': get_config('ollama_model')
         }
         return OllamaProvider(config)
 
     elif provider_name == 'openrouter':
         config = {
-            'api_key': os.getenv('OPENROUTER_API_KEY') or safe_vim_eval('g:openrouter_api_key'),
-            'base_url': safe_vim_eval('g:openrouter_base_url'),
-            'model': safe_vim_eval('g:openrouter_model')
+            'api_key': os.getenv('OPENROUTER_API_KEY') or get_config('openrouter_api_key'),
+            'base_url': get_config('openrouter_base_url'),
+            'model': get_config('openrouter_model')
         }
         return OpenRouterProvider(config)
 
     else:  # Default to openai
-        from chatgpt.utils import get_config
         config = {
-            'api_type': safe_vim_eval('g:api_type'),
-            'api_key': os.getenv('OPENAI_API_KEY') or get_config('key') or safe_vim_eval('g:openai_api_key'),
-            'base_url': os.getenv('OPENAI_PROXY') or os.getenv('OPENAI_API_BASE') or safe_vim_eval('g:openai_base_url'),
+            'api_type': get_config('api_type'),
+            'api_key': os.getenv('OPENAI_API_KEY') or get_config('key') or get_config('openai_api_key'),
+            'base_url': os.getenv('OPENAI_PROXY') or os.getenv('OPENAI_API_BASE') or get_config('openai_base_url'),
             'model': get_config('model'),
             # Azure-specific config
-            'azure_endpoint': safe_vim_eval('g:azure_endpoint'),
-            'azure_deployment': safe_vim_eval('g:azure_deployment'),
-            'azure_api_version': safe_vim_eval('g:azure_api_version')
+            'azure_endpoint': get_config('azure_endpoint'),
+            'azure_deployment': get_config('azure_deployment'),
+            'azure_api_version': get_config('azure_api_version')
         }
         return OpenAIProvider(config)

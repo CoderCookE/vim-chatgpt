@@ -73,8 +73,8 @@ def generate_conversation_summary():
     history_size = os.path.getsize(history_file)
 
     # Get window size from config (default 30KB)
-    from chatgpt.utils import safe_vim_eval
-    recent_window = int(safe_vim_eval('g:chat_gpt_recent_history_size') or 30480)
+    from chatgpt.utils import get_config
+    recent_window = int(get_config('recent_history_size', '30480'))
 
     new_cutoff = max(0, history_size - recent_window)
 

@@ -57,23 +57,19 @@ def chat_gpt(prompt):
     temperature = float(get_config('temperature', '0.7'))
     lang = get_config('lang', 'None')
     resp = f" And respond in {lang}." if lang != 'None' else ""
-    suppress_display = int(vim.eval('exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0'))
+    suppress_display = int(get_config('suppress_display', '0'))
 
     # Get model from provider
     model = provider.get_model()
 
     # Build system message
-    personas = dict(vim.eval('g:gpt_personas'))
-    persona = str(vim.eval('g:chat_persona'))
-
-    # Start with tool calling instruction FIRST if tools are enabled
-    enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
+    personas = vim.eval('g:gpt_personas')  # Keep this as vim.eval since it's a dict
+    persona = get_config('persona', 'default')
+    enable_tools = int(get_config('enable_tools', '1'))
     if enable_tools and provider.supports_tools():
         system_message = "CRITICAL: You have function/tool calling capability via the API. When you need to use a tool, you MUST use the API's native tool calling feature. NEVER write text that describes or mimics tool usage. The system handles all tool execution automatically.\n\n"
     else:
         system_message = ""
-
-    system_message += f"{personas[persona]} {resp}"
 
     # Load project context if available
     from chatgpt.utils import get_project_dir
@@ -114,11 +110,9 @@ def chat_gpt(prompt):
     if active_plan:
         system_message += f"\n\n## Current Active Plan\n\nYou previously created and the user approved this plan. Continue executing it:\n\n{active_plan}"
 
-    # Add planning instruction if tools are enabled and plan approval required
-    enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
-    require_plan_approval = int(vim.eval('exists("g:chat_gpt_require_plan_approval") ? g:chat_gpt_require_plan_approval : 1'))
-    debug_log(f"DEBUG: Read from VimScript: enable_tools={enable_tools}, require_plan_approval={require_plan_approval}")
 
+    # Add planning instruction if tools are enabled and plan approval required
+    require_plan_approval = int(get_config('require_plan_approval', '1'))
     if enable_tools and provider.supports_tools():
         # Add tool calling capability instructions
         system_message += "\n\n## TOOL CALLING CAPABILITY\n\nYou have access to function/tool calling via the API. Tools are available through the native tool calling feature.\n\nIMPORTANT: When executing tools:\n- Use the API's tool/function calling feature (NOT text descriptions)\n- Do NOT write text that mimics tool execution like 'Success: git_status()'\n- Do NOT output text like 'Tool Execution' or 'Calling tool: X'\n- The system automatically handles and displays tool execution\n- Your job is to CALL the tools via the API, not describe them in text\n"
@@ -175,18 +169,15 @@ CRITICAL EXECUTION RULES:
 - NEVER execute tools before showing a plan
 - When executing: Your response must be ONLY tool calls, ZERO text content
 - The system automatically displays tool execution progress - you must NOT output any text
-- DO NOT mimic or output text like "Tool Execution - Step X" or separator lines
-- After each tool execution, EVALUATE if plan needs adjustment
-- Between tool calls, you can provide brief analysis text, but during the actual tool call, ONLY send the function call
 """
-        else:
-            # Direct execution mode - no planning workflow
-            system_message += "\n## DIRECT EXECUTION MODE\n\n**CRITICAL INSTRUCTIONS:**\n- Plan approval is DISABLED\n- DO NOT present plans, goals, or explain what you will do\n- DO NOT write ANY text describing your actions\n- Your FIRST response must contain ONLY tool/function calls, ZERO text\n- Execute the user's request IMMEDIATELY using the appropriate tools\n- After tools complete, you may provide a brief summary of results\n\n**EXECUTION RULES:**\n- IMMEDIATELY call the required tools via the API\n- Do NOT output text like \"Let me create...\" or \"I'll start by...\"\n- The system handles all tool execution display\n- Just make the function calls and nothing else\n"
+    else:
+        # Direct execution mode - no planning workflow
+        system_message += "\n## DIRECT EXECUTION MODE\n\n**CRITICAL INSTRUCTIONS:**\n- Plan approval is DISABLED\n- DO NOT present plans, goals, or explain what you will do\n- DO NOT write ANY text describing your actions\n- Your FIRST response must contain ONLY tool/function calls, ZERO text\n- Execute the user's request IMMEDIATELY using the appropriate tools\n- After tools complete, you may provide a brief summary of results\n\n**EXECUTION RULES:**\n- IMMEDIATELY call the required tools via the API\n- Do NOT output text like \"Let me create...\" or \"I'll start by...\"\n- The system handles all tool execution display\n- Just make the function calls and nothing else\n"
 
     # Session history management
     history = []
-    session_enabled = int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1
-    session_mode_val = safe_vim_eval('g:chat_gpt_session_mode') or '1'
+    session_enabled = int(get_config('session_mode', '1')) == 1
+    session_mode_val = get_config('session_mode', '1')
     debug_log(f"DEBUG: session_enabled = {session_enabled}, g:chat_gpt_session_mode = {session_mode_val}")
 
     # Create project directory if it doesn't exist
@@ -279,7 +270,7 @@ CRITICAL EXECUTION RULES:
 
     # Get tools if enabled and provider supports them
     tools = None
-    enable_tools = int(vim.eval('exists("g:chat_gpt_enable_tools") ? g:chat_gpt_enable_tools : 1'))
+    enable_tools = int(get_config('enable_tools', '1'))
     if enable_tools and provider.supports_tools():
         tools = get_tool_definitions()
         debug_log(f"INFO: Tools enabled - {len(tools)} tools available")
