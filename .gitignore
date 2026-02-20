@@ -3,3 +3,18 @@
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Backup files
+*.backup
+*.backup2
+*~
+.*.swp
+.*.swo
+.legacy_backup/
