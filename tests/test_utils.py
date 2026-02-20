@@ -18,6 +18,8 @@ from chatgpt.utils import (
     debug_log,
     safe_vim_eval,
     save_to_history,
+    save_plan,
+    load_plan,
     format_box,
     format_separator,
     format_tool_call,
@@ -244,3 +246,127 @@ class TestFormatPlanDisplay:
         assert "REVISED PLAN" in result
         assert "tool0" in result
         assert "tool4" in result
+
+
+class TestSavePlan:
+    """Tests for save_plan function"""
+
+    @patch('chatgpt.utils.vim')
+    @patch('os.path.exists')
+    @patch('os.makedirs')
+    @patch('os.getcwd')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_saves_plan_to_file(self, mock_file, mock_getcwd, mock_makedirs, mock_exists, mock_vim):
+        """Test that save_plan writes plan to .vim-chatgpt/plan.md"""
+        mock_vim.eval.return_value = '1'  # Session mode enabled
+        mock_getcwd.return_value = '/test/project'
+        mock_exists.return_value = True
+
+        plan_content = """GOAL: Test the feature
+
+PLAN:
+1. Step one
+2. Step two"""
+
+        save_plan(plan_content)
+
+        # Verify file was opened for writing
+        mock_file.assert_called_once_with('/test/project/.vim-chatgpt/plan.md', 'w', encoding='utf-8')
+
+        # Verify content was written with metadata
+        handle = mock_file()
+        written_content = ''.join(call.args[0] for call in handle.write.call_args_list)
+        assert 'Plan saved at:' in written_content
+        assert 'GOAL: Test the feature' in written_content
+        assert 'Step one' in written_content
+
+    @patch('chatgpt.utils.vim')
+    @patch('os.path.exists')
+    @patch('os.makedirs')
+    @patch('os.getcwd')
+    def test_creates_directory_if_not_exists(self, mock_getcwd, mock_makedirs, mock_exists, mock_vim):
+        """Test that save_plan creates .vim-chatgpt directory if needed"""
+        mock_vim.eval.return_value = '1'  # Session mode enabled
+        mock_getcwd.return_value = '/test/project'
+        mock_exists.return_value = False
+
+        with patch('builtins.open', mock_open()):
+            save_plan("Test plan")
+
+        # Verify directory was created
+        mock_makedirs.assert_called_once_with('/test/project/.vim-chatgpt')
+
+    @patch('chatgpt.utils.vim')
+    def test_skips_when_session_disabled(self, mock_vim):
+        """Test that save_plan does nothing when session mode is disabled"""
+        mock_vim.eval.return_value = '0'  # Session mode disabled
+
+        with patch('builtins.open', mock_open()) as mock_file:
+            save_plan("Test plan")
+
+        # Verify file was not opened
+        mock_file.assert_not_called()
+
+    @patch('chatgpt.utils.vim')
+    @patch('os.getcwd')
+    @patch('builtins.open', side_effect=OSError("Write error"))
+    def test_handles_write_errors_gracefully(self, mock_file, mock_getcwd, mock_vim):
+        """Test that save_plan handles write errors without crashing"""
+        mock_vim.eval.return_value = '1'
+        mock_getcwd.return_value = '/test/project'
+
+        with patch('os.path.exists', return_value=True):
+            # Should not raise exception
+            save_plan("Test plan")
+
+
+class TestLoadPlan:
+    """Tests for load_plan function"""
+
+    @patch('os.getcwd')
+    @patch('os.path.exists')
+    @patch('builtins.open', new_callable=mock_open, read_data="""<!-- Plan saved at: 2024-01-01 12:00:00 -->
+
+GOAL: Test the feature
+
+PLAN:
+1. Step one
+2. Step two""")
+    def test_loads_plan_from_file(self, mock_file, mock_exists, mock_getcwd):
+        """Test that load_plan reads and parses plan.md"""
+        mock_getcwd.return_value = '/test/project'
+        mock_exists.return_value = True
+
+        result = load_plan()
+
+        # Verify file was opened for reading
+        mock_file.assert_called_once_with('/test/project/.vim-chatgpt/plan.md', 'r', encoding='utf-8')
+
+        # Verify metadata was stripped
+        assert 'Plan saved at:' not in result
+        assert 'GOAL: Test the feature' in result
+        assert 'Step one' in result
+
+    @patch('os.getcwd')
+    @patch('os.path.exists')
+    def test_returns_none_when_file_not_exists(self, mock_exists, mock_getcwd):
+        """Test that load_plan returns None when plan.md doesn't exist"""
+        mock_getcwd.return_value = '/test/project'
+        mock_exists.return_value = False
+
+        result = load_plan()
+
+        assert result is None
+
+    @patch('os.getcwd')
+    @patch('os.path.exists')
+    @patch('builtins.open', side_effect=OSError("Read error"))
+    def test_handles_read_errors_gracefully(self, mock_file, mock_exists, mock_getcwd):
+        """Test that load_plan handles read errors without crashing"""
+        mock_getcwd.return_value = '/test/project'
+        mock_exists.return_value = True
+
+        result = load_plan()
+
+        # Should return None on error
+        assert result is None
