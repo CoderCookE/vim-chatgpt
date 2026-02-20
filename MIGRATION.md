@@ -71,14 +71,21 @@ let g:chat_gpt_model = 'claude-3-5-sonnet-20241022'
 Update all variables to new names:
 
 ```vim
-" New configuration style
-let g:llm_agent_api_key = $ANTHROPIC_API_KEY
-let g:llm_agent_model = 'claude-3-5-sonnet-20241022'
-let g:llm_agent_provider = 'anthropic'
-let g:llm_agent_max_tokens = 8192
-let g:llm_agent_temperature = 0.7
-let g:llm_agent_enable_tools = 1
-let g:llm_agent_require_plan_approval = 1
+" New configuration style - FULLY SUPPORTED variables
+let g:llm_agent_provider = 'anthropic'        " ✅ Supported
+let g:llm_agent_model = 'claude-3-5-sonnet-20241022'  " ✅ Supported
+let g:llm_agent_key = $ANTHROPIC_API_KEY     " ✅ Supported
+let g:llm_agent_max_tokens = 8192            " ✅ Supported
+let g:llm_agent_temperature = 0.7            " ✅ Supported
+let g:llm_agent_lang = 'Spanish'             " ✅ Supported
+let g:llm_agent_log_level = 2                " ✅ Supported
+let g:llm_agent_recent_history_size = 30480  " ✅ Supported
+
+" Note: The following still use old names internally (backwards compatible):
+let g:chat_gpt_enable_tools = 1
+let g:chat_gpt_require_plan_approval = 1
+let g:chat_gpt_session_mode = 1
+let g:chat_gpt_suppress_display = 0
 ```
 
 ## Project Directory Migration

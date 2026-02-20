@@ -675,11 +675,12 @@ def create_provider(provider_name):
         return OpenRouterProvider(config)
 
     else:  # Default to openai
+        from chatgpt.utils import get_config
         config = {
             'api_type': safe_vim_eval('g:api_type'),
-            'api_key': os.getenv('OPENAI_API_KEY') or safe_vim_eval('g:chat_gpt_key') or safe_vim_eval('g:openai_api_key'),
+            'api_key': os.getenv('OPENAI_API_KEY') or get_config('key') or safe_vim_eval('g:openai_api_key'),
             'base_url': os.getenv('OPENAI_PROXY') or os.getenv('OPENAI_API_BASE') or safe_vim_eval('g:openai_base_url'),
-            'model': safe_vim_eval('g:chat_gpt_model'),
+            'model': get_config('model'),
             # Azure-specific config
             'azure_endpoint': safe_vim_eval('g:azure_endpoint'),
             'azure_deployment': safe_vim_eval('g:azure_deployment'),

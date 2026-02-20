@@ -43,8 +43,8 @@ def chat_gpt(prompt):
     }
 
     # Get provider
-    from chatgpt.utils import safe_vim_eval
-    provider_name = safe_vim_eval('g:chat_gpt_provider') or 'openai'
+    from chatgpt.utils import safe_vim_eval, get_config
+    provider_name = get_config('provider', 'openai')
 
     try:
         provider = create_provider(provider_name)
@@ -53,9 +53,9 @@ def chat_gpt(prompt):
         return
 
     # Get parameters
-    max_tokens = int(vim.eval('g:chat_gpt_max_tokens'))
-    temperature = float(vim.eval('g:chat_gpt_temperature'))
-    lang = str(vim.eval('g:chat_gpt_lang'))
+    max_tokens = int(get_config('max_tokens', '2000'))
+    temperature = float(get_config('temperature', '0.7'))
+    lang = get_config('lang', 'None')
     resp = f" And respond in {lang}." if lang != 'None' else ""
     suppress_display = int(vim.eval('exists("g:chat_gpt_suppress_display") ? g:chat_gpt_suppress_display : 0'))
 
