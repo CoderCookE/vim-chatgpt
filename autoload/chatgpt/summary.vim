@@ -3,7 +3,15 @@
 
 " Extract cutoff byte position from summary metadata
 function! s:get_summary_cutoff(project_dir) abort
-    let summary_file = a:project_dir . '/.vim-chatgpt/summary.md'
+    " Use new directory name, but check for old one for backwards compatibility
+    let vim_dir = a:project_dir . '/.vim-llm-agent'
+    if !isdirectory(vim_dir)
+        let old_dir = a:project_dir . '/.vim-chatgpt'
+        if isdirectory(old_dir)
+            let vim_dir = old_dir
+        endif
+    endif
+    let summary_file = vim_dir . '/summary.md'
 
     if !filereadable(summary_file)
         return 0
@@ -36,8 +44,17 @@ function! chatgpt#summary#check_and_update() abort
         return
     endif
 
-    let history_file = project_dir . '/.vim-chatgpt/history.txt'
-    let summary_file = project_dir . '/.vim-chatgpt/summary.md'
+    " Use new directory name, but check for old one for backwards compatibility
+    let vim_dir = project_dir . '/.vim-llm-agent'
+    if !isdirectory(vim_dir)
+        let old_dir = project_dir . '/.vim-chatgpt'
+        if isdirectory(old_dir)
+            let vim_dir = old_dir
+        endif
+    endif
+
+    let history_file = vim_dir . '/history.txt'
+    let summary_file = vim_dir . '/summary.md'
 
     if !filereadable(history_file)
         return
@@ -93,6 +110,17 @@ endfunction
 
 " Generate conversation summary
 function! chatgpt#summary#generate() abort
+  " Determine which directory to use (new .vim-llm-agent or old .vim-chatgpt for backwards compatibility)
+  let project_dir = getcwd()
+  let vim_dir = project_dir . '/.vim-llm-agent'
+  let dir_name = '.vim-llm-agent'
+  if !isdirectory(vim_dir)
+    let old_dir = project_dir . '/.vim-chatgpt'
+    if isdirectory(old_dir)
+      let dir_name = '.vim-chatgpt'
+    endif
+  endif
+
   " This function is complex and calls Python code
   " For now, delegate to the main chat function with appropriate prompt
   python3 << EOF
@@ -110,6 +138,6 @@ from chatgpt.summary import generate_conversation_summary
 generate_conversation_summary()
 EOF
 
-  echo "\nConversation summary generated at .vim-chatgpt/summary.md"
+  echo "\nConversation summary generated at " . dir_name . "/summary.md"
   echo "You can edit this file to add or modify preferences."
 endfunction

@@ -159,8 +159,9 @@ def generate_conversation_summary():
 
     # IMPORTANT: Ask the AI to save the file using the create_file tool
     # This ensures the metadata header gets added properly by the tool
-    # Use relative path that works with both old (.vim-chatgpt) and new (.vim-llm-agent) directories
-    prompt += f"\n\nSave the summary to summary.md in the project directory using the create_file tool with overwrite=true."
+    # Use the specific directory path to avoid ambiguity
+    dir_name = os.path.basename(project_dir)  # Get just the directory name (.vim-llm-agent or .vim-chatgpt)
+    prompt += f"\n\nSave the summary to {dir_name}/summary.md using the create_file tool with overwrite=true."
 
     debug_log(f"INFO: Generating summary for {bytes_to_summarize} bytes of conversation")
 

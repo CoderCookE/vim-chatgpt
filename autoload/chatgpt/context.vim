@@ -24,7 +24,15 @@ function! chatgpt#context#check_and_generate() abort
         return
     endif
 
-    let context_file = project_dir . '/.vim-chatgpt/context.md'
+    " Use new directory name, but check for old one for backwards compatibility
+    let vim_dir = project_dir . '/.vim-llm-agent'
+    if !isdirectory(vim_dir)
+        let old_dir = project_dir . '/.vim-chatgpt'
+        if isdirectory(old_dir)
+            let vim_dir = old_dir
+        endif
+    endif
+    let context_file = vim_dir . '/context.md'
     let should_generate = 0
 
     if !filereadable(context_file)
@@ -68,6 +76,17 @@ endfunction
 
 " Generate project context
 function! chatgpt#context#generate() abort
+  " Determine which directory to use (new .vim-llm-agent or old .vim-chatgpt for backwards compatibility)
+  let project_dir = getcwd()
+  let vim_dir = project_dir . '/.vim-llm-agent'
+  let dir_name = '.vim-llm-agent'
+  if !isdirectory(vim_dir)
+    let old_dir = project_dir . '/.vim-chatgpt'
+    if isdirectory(old_dir)
+      let dir_name = '.vim-chatgpt'
+    endif
+  endif
+
   let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:'
   let prompt .= "\n\n1. Get the working directory"
   let prompt .= "\n2. List the root directory contents"
@@ -85,8 +104,8 @@ function! chatgpt#context#generate() abort
   let prompt .= "\n[Brief overview of directory structure and key files]"
   let prompt .= "\n\n## Key Files"
   let prompt .= "\n[List important entry points, config files, etc.]"
-  let prompt .= "\n\nSave this context to .vim-chatgpt/context.md so I understand this project in future conversations."
-  let prompt .= "\n\nImportant: Actually use the create_file tool to save the context to .vim-chatgpt/context.md"
+  let prompt .= "\n\nSave this context to " . dir_name . "/context.md so I understand this project in future conversations."
+  let prompt .= "\n\nImportant: Actually use the create_file tool to save the context to " . dir_name . "/context.md"
 
   " Use session mode 0 for one-time response
   let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
@@ -104,6 +123,6 @@ function! chatgpt#context#generate() abort
   let g:chat_gpt_require_plan_approval = save_plan_approval
   let g:chat_gpt_suppress_display = save_suppress_display
 
-  echo "\nProject context generated at .vim-chatgpt/context.md"
+  echo "\nProject context generated at " . dir_name . "/context.md"
   echo "You can edit this file to customize the project context."
 endfunction
