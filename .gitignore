@@ -18,3 +18,19 @@ __pycache__/
 .*.swp
 .*.swo
 .legacy_backup/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Test coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Legacy and temporary files
+plugin.vim.legacy
+IMPLEMENTATION_SUMMARY.md
+TOOL_APPROVAL.md
+examples/
