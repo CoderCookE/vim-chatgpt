@@ -61,55 +61,55 @@ function! chatgpt#summary#check_and_update() abort
     endif
 
     let file_size = getfsize(history_file)
+    let compaction_size = exists('g:llm_agent_summary_compaction_size') ? g:llm_agent_summary_compaction_size : (exists('g:chat_gpt_summary_compaction_size') ? g:chat_gpt_summary_compaction_size : 76800)
     let cutoff_byte = s:get_summary_cutoff(project_dir)
-    let compaction_size = g:chat_gpt_summary_compaction_size
     let new_content_size = file_size - cutoff_byte
 
     if new_content_size > compaction_size
         echo "Conversation grew by " . float2nr(new_content_size / 1024) . "KB. Compacting into summary..."
 
         let save_cwd = getcwd()
-        let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
-        let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
-        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1
-        let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+        let save_session_mode = exists('g:llm_agent_session_mode') ? g:llm_agent_session_mode : (exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1)
+        let save_plan_approval = exists('g:llm_agent_require_plan_approval') ? g:llm_agent_require_plan_approval : (exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1)
+        let save_tool_approval = exists('g:llm_agent_require_tool_approval') ? g:llm_agent_require_tool_approval : (exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1)
+        let save_suppress_display = exists('g:llm_agent_suppress_display') ? g:llm_agent_suppress_display : (exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0)
 
         execute 'cd ' . fnameescape(project_dir)
 
-        let g:chat_gpt_session_mode = 0
-        let g:chat_gpt_require_plan_approval = 0
-        let g:chat_gpt_require_tool_approval = 0
-        let g:chat_gpt_suppress_display = 1
+        let g:llm_agent_session_mode = 0
+        let g:llm_agent_require_plan_approval = 0
+        let g:llm_agent_require_tool_approval = 0
+        let g:llm_agent_suppress_display = 1
 
         call chatgpt#summary#generate()
 
-        let g:chat_gpt_session_mode = save_session_mode
-        let g:chat_gpt_require_plan_approval = save_plan_approval
-        let g:chat_gpt_require_tool_approval = save_tool_approval
-        let g:chat_gpt_suppress_display = save_suppress_display
+        let g:llm_agent_session_mode = save_session_mode
+        let g:llm_agent_require_plan_approval = save_plan_approval
+        let g:llm_agent_require_tool_approval = save_tool_approval
+        let g:llm_agent_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     elseif !filereadable(summary_file) && file_size > 1024
         echo "No conversation summary found. Generating from history..."
 
         let save_cwd = getcwd()
-        let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
-        let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
-        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1
-        let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
+        let save_session_mode = exists('g:llm_agent_session_mode') ? g:llm_agent_session_mode : (exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1)
+        let save_plan_approval = exists('g:llm_agent_require_plan_approval') ? g:llm_agent_require_plan_approval : (exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1)
+        let save_tool_approval = exists('g:llm_agent_require_tool_approval') ? g:llm_agent_require_tool_approval : (exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1)
+        let save_suppress_display = exists('g:llm_agent_suppress_display') ? g:llm_agent_suppress_display : (exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0)
 
         execute 'cd ' . fnameescape(project_dir)
 
-        let g:chat_gpt_session_mode = 0
-        let g:chat_gpt_require_plan_approval = 0
-        let g:chat_gpt_require_tool_approval = 0
-        let g:chat_gpt_suppress_display = 1
+        let g:llm_agent_session_mode = 0
+        let g:llm_agent_require_plan_approval = 0
+        let g:llm_agent_require_tool_approval = 0
+        let g:llm_agent_suppress_display = 1
 
         call chatgpt#summary#generate()
 
-        let g:chat_gpt_session_mode = save_session_mode
-        let g:chat_gpt_require_plan_approval = save_plan_approval
-        let g:chat_gpt_require_tool_approval = save_tool_approval
-        let g:chat_gpt_suppress_display = save_suppress_display
+        let g:llm_agent_session_mode = save_session_mode
+        let g:llm_agent_require_plan_approval = save_plan_approval
+        let g:llm_agent_require_tool_approval = save_tool_approval
+        let g:llm_agent_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     endif
 endfunction

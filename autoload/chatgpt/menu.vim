@@ -55,7 +55,8 @@ function! chatgpt#menu#send_code(ask, context) abort
     call setpos("'>", curpos)
 
     " Only restore cursor position if NOT in session mode
-    let session_enabled = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
+    " Only restore cursor position if NOT in session mode
+    let session_enabled = exists('g:llm_agent_session_mode') ? g:llm_agent_session_mode : (exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1)
     if !session_enabled
         call setpos('.', save_cursor)
     endif

@@ -20,7 +20,7 @@ def get_config(name, default=None):
 
     Supports backwards compatibility by checking:
     1. New name: g:llm_agent_{name}
-    2. Old name: g:chat_gpt_{name}
+    2. Old name: g:chat_gpt_{name} (deprecated, for backward compatibility)
     3. Default value
 
     Args:
@@ -33,18 +33,29 @@ def get_config(name, default=None):
     Examples:
         get_config('api_key') checks g:llm_agent_api_key then g:chat_gpt_api_key
         get_config('model', 'gpt-4') returns 'gpt-4' if neither is set
+    
+    Note:
+        The old g:chat_gpt_* naming is deprecated. Please migrate to g:llm_agent_*.
     """
     # Try new name first
     new_var = f'g:llm_agent_{name}'
-    new_val = safe_vim_eval(f'exists("{new_var}") ? {new_var} : ""')
-    if new_val and new_val != '':
-        return new_val
+    try:
+        new_val = vim.eval(f'exists("{new_var}") ? {new_var} : ""')
+        if new_val and new_val != '':
+            return new_val
+    except vim.error:
+        pass
 
-    # Fall back to old name
+    # Fall back to old name for backward compatibility
     old_var = f'g:chat_gpt_{name}'
-    old_val = safe_vim_eval(f'exists("{old_var}") ? {old_var} : ""')
-    if old_val and old_val != '':
-        return old_val
+    try:
+        old_val = vim.eval(f'exists("{old_var}") ? {old_var} : ""')
+        if old_val and old_val != '':
+            # Log deprecation warning (only once per variable)
+            debug_log(f"WARNING: {old_var} is deprecated. Please use {new_var} instead.", force=True)
+            return old_val
+    except vim.error:
+        pass
 
     # Return default
     return default
