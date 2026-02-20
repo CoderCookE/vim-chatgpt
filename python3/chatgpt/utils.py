@@ -121,14 +121,24 @@ def debug_log(msg):
         if message_level < (configured_level - 1):
             return
 
-        log_file = '/tmp/vim-chatgpt-debug.log'
+        # Use project directory for debug log (cross-platform)
+        try:
+            project_dir = get_project_dir()
+            # Create directory if it doesn't exist
+            if not os.path.exists(project_dir):
+                os.makedirs(project_dir)
+            log_file = os.path.join(project_dir, 'debug.log')
+        except Exception:
+            # Fallback to temp directory if project dir fails (cross-platform)
+            import tempfile
+            log_file = os.path.join(tempfile.gettempdir(), 'vim-llm-agent-debug.log')
 
         from datetime import datetime
         timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
         level_name = [k for k, v in LOG_LEVEL_MAP.items() if v == message_level]
         level_str = level_name[0].rstrip(':') if level_name else 'DEBUG'
 
-        with open(log_file, 'a') as f:
+        with open(log_file, 'a', encoding='utf-8') as f:
             f.write(f'[{timestamp}] [{level_str}] {clean_msg}\n')
     except Exception as e:
         pass
