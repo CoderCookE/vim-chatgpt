@@ -21,22 +21,23 @@ def get_summary_cutoff(project_dir):
     Returns:
         int: Byte position where last summary ended
     """
-    summary_file = os.path.join(project_dir, 'summary.md')
+    summary_file = os.path.join(project_dir, "summary.md")
 
     if not os.path.exists(summary_file):
         return 0
 
     try:
-        with open(summary_file, 'r', encoding='utf-8') as f:
+        with open(summary_file, "r", encoding="utf-8") as f:
             # Read first 10 lines to find metadata
             for _ in range(10):
                 line = f.readline()
                 if not line:
                     break
-                if 'cutoff_byte:' in line:
+                if "cutoff_byte:" in line:
                     # Extract number after cutoff_byte:
                     import re
-                    match = re.search(r'cutoff_byte:\s*(\d+)', line)
+
+                    match = re.search(r"cutoff_byte:\s*(\d+)", line)
                     if match:
                         return int(match.group(1))
     except Exception as e:
@@ -59,9 +60,10 @@ def generate_conversation_summary():
 
     # Get project directory and file paths
     from chatgpt.utils import get_project_dir
+
     project_dir = get_project_dir()
-    history_file = os.path.join(project_dir, 'history.txt')
-    summary_file = os.path.join(project_dir, 'summary.md')
+    history_file = os.path.join(project_dir, "history.txt")
+    summary_file = os.path.join(project_dir, "summary.md")
 
     # Check if history exists
     if not os.path.exists(history_file):
@@ -74,7 +76,8 @@ def generate_conversation_summary():
 
     # Get window size from config (default 30KB)
     from chatgpt.utils import get_config
-    recent_window = int(get_config('recent_history_size', '30480'))
+
+    recent_window = int(get_config("recent_history_size", "30480"))
 
     new_cutoff = max(0, history_size - recent_window)
 
@@ -82,7 +85,7 @@ def generate_conversation_summary():
     old_summary = ""
     if os.path.exists(summary_file):
         try:
-            with open(summary_file, 'r', encoding='utf-8') as f:
+            with open(summary_file, "r", encoding="utf-8") as f:
                 old_summary = f.read()
         except Exception as e:
             debug_log(f"WARNING: Could not read old summary: {str(e)}")
@@ -98,13 +101,15 @@ def generate_conversation_summary():
 
     # Cap the amount to avoid processing too many chunks
     if bytes_to_summarize > max_compaction_total:
-        debug_log(f"INFO: Large backlog ({bytes_to_summarize//1024}KB), limiting to {max_compaction_total//1024}KB")
+        debug_log(
+            f"INFO: Large backlog ({bytes_to_summarize//1024}KB), limiting to {max_compaction_total//1024}KB"
+        )
         old_cutoff = new_cutoff - max_compaction_total
         bytes_to_summarize = max_compaction_total
 
     # Read the conversation portion to summarize
     try:
-        with open(history_file, 'rb') as f:
+        with open(history_file, "rb") as f:
             if bytes_to_summarize > 0:
                 # Read from old_cutoff to new_cutoff
                 f.seek(old_cutoff)
@@ -115,7 +120,7 @@ def generate_conversation_summary():
                 chunk_bytes = f.read(new_cutoff)
 
             # Decode with error handling for UTF-8 boundaries
-            new_conversation = chunk_bytes.decode('utf-8', errors='ignore')
+            new_conversation = chunk_bytes.decode("utf-8", errors="ignore")
     except Exception as e:
         debug_log(f"ERROR: Failed to read history: {str(e)}")
         return
@@ -126,7 +131,8 @@ def generate_conversation_summary():
     if old_cutoff > 0 and old_summary:
         # Strip metadata from existing summary
         import re
-        summary_content = re.sub(r'^<!--.*?-->\n+', '', old_summary, flags=re.DOTALL)
+
+        summary_content = re.sub(r"^<!--.*?-->\n+", "", old_summary, flags=re.DOTALL)
 
         prompt += "Here is the existing conversation summary:\n\n"
         prompt += f"```markdown\n{summary_content}\n```\n\n"
@@ -155,15 +161,21 @@ def generate_conversation_summary():
     prompt += "\n\n## Action Items"
     prompt += "\n[Any pending tasks or future work mentioned]"
     prompt += "\n\nNOTE: If there was an active plan during this conversation, DO NOT include it in the summary. "
-    prompt += "Plans are persisted separately in plan.md and will be loaded automatically."
+    prompt += (
+        "Plans are persisted separately in plan.md and will be loaded automatically."
+    )
 
     # IMPORTANT: Ask the AI to save the file using the create_file tool
     # This ensures the metadata header gets added properly by the tool
     # Use the specific directory path to avoid ambiguity
-    dir_name = os.path.basename(project_dir)  # Get just the directory name (.vim-llm-agent or .vim-chatgpt)
+    dir_name = os.path.basename(
+        project_dir
+    )  # Get just the directory name (.vim-llm-agent or .vim-chatgpt)
     prompt += f"\n\nSave the summary to {dir_name}/summary.md using the create_file tool with overwrite=true."
 
-    debug_log(f"INFO: Generating summary for {bytes_to_summarize} bytes of conversation")
+    debug_log(
+        f"INFO: Generating summary for {bytes_to_summarize} bytes of conversation"
+    )
 
     # Generate the summary using chat_gpt
     # The AI will use the create_file tool to save it with proper metadata
