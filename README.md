@@ -188,6 +188,10 @@ let g:llm_agent_log_level=0  " 0=off, 1=basic, 2=verbose
  - **g:chat_persona**: Default AI persona to load on startup. Must match a key in `g:gpt_personas` or `g:llm_agent_custom_persona`. Default: `'default'`. See [Custom Personas](#custom-personas) section.
  - **g:llm_agent_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
  - **g:llm_agent_require_plan_approval**: Require user approval before executing tool-based plans. When enabled, the AI will present a plan first, wait for approval, then execute tools in batches of 3 iterations with review points. Default: 1 (enabled).
+ - **g:chat_gpt_require_tool_approval**: Require individual tool approval on first use. When enabled, you'll be prompted to approve/deny each new tool the first time the AI attempts to use it. Default: 1 (enabled). Options:
+   - **Allow Once**: Approve this single tool execution
+   - **Always Allow**: Remember approval for this tool in the current session
+   - **Deny**: Block this tool and remember the denial
  - **g:llm_agent_summary_compaction_size**: Trigger summary regeneration after this many bytes of new conversation since last summary. Default: 51200 (50KB). This implements automatic conversation compaction.
  - **g:llm_agent_recent_history_size**: Keep this many bytes of recent conversation uncompressed. Older content gets compressed into summary. Default: 20480 (20KB). Controls the sliding window size.
 

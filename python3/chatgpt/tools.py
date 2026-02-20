@@ -470,8 +470,8 @@ def check_tool_approval(tool_name, arguments):
     """
     global _approved_tools
 
-    # Check if tool approval is enabled (disabled by default for backwards compatibility)
-    require_approval = safe_vim_eval('exists("g:chat_gpt_require_tool_approval") ? g:chat_gpt_require_tool_approval : 0') or '0'
+    # Check if tool approval is enabled (enabled by default for security)
+    require_approval = safe_vim_eval('exists("g:chat_gpt_require_tool_approval") ? g:chat_gpt_require_tool_approval : 1') or '1'
     if require_approval == '0':
         return (True, None)
 

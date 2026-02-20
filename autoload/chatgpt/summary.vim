@@ -71,7 +71,7 @@ function! chatgpt#summary#check_and_update() abort
         let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
-        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
+        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
 
         execute 'cd ' . fnameescape(project_dir)
@@ -94,7 +94,7 @@ function! chatgpt#summary#check_and_update() abort
         let save_cwd = getcwd()
         let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
         let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
-        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
+        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1
         let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
 
         execute 'cd ' . fnameescape(project_dir)

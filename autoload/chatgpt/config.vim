@@ -41,6 +41,11 @@ function! chatgpt#config#setup() abort
     let g:chat_gpt_require_plan_approval = 1
   endif
 
+  " Require individual tool approval (prompts user for each new tool)
+  if !exists("g:chat_gpt_require_tool_approval")
+    let g:chat_gpt_require_tool_approval = 1
+  endif
+
   " Session mode (persistent chat history)
   if !exists("g:chat_gpt_session_mode")
     let g:chat_gpt_session_mode = 1
