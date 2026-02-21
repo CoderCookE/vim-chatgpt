@@ -9,7 +9,7 @@ import os
 import subprocess
 import re
 import vim
-from chatgpt.utils import debug_log, safe_vim_eval, get_config
+from chatgpt.utils import debug_log, get_config
 
 # Session-level cache for approved tools
 # Keys: tool_name -> approval status ('always', 'session', 'denied')
@@ -419,7 +419,12 @@ def validate_file_path(file_path, operation="file operation"):
 
             # Call Vim's confirm() function
             # Returns: 1=Yes, 2=No
-            result = int(vim.eval(f"confirm('{prompt_msg_escaped}', '&Yes\\n&No', 2)"))
+            result_str = vim.eval(f"confirm('{prompt_msg_escaped}', '&Yes\\n&No', 2)")
+            # Handle empty string (can happen in test environments)
+            if result_str == "" or result_str is None:
+                result = 2  # Default to No
+            else:
+                result = int(result_str)
 
             if result == 1:
                 # User approved
@@ -508,7 +513,12 @@ def check_tool_approval(tool_name, arguments):
         # Use inputlist() which is more reliable for terminal input
         # Returns the selected number (1, 2, 3) or 0 for cancel
         vim_cmd = f"inputlist(['AI wants to use tool: {tool_name_escaped}', 'Arguments: {args_str_escaped}', '', 'Select an option:', '1. Allow Once', '2. Always Allow', '3. Deny', '', 'Enter number (1-3): '])"
-        result = int(vim.eval(vim_cmd))
+        result_str = vim.eval(vim_cmd)
+        # Handle empty string (can happen in test environments)
+        if result_str == "" or result_str is None:
+            result = 0
+        else:
+            result = int(result_str)
 
         if result == 1:
             # Allow once - don't add to cache

@@ -29,7 +29,6 @@ class TestToolApproval:
         clear_tool_approvals()
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_approval_disabled_by_default(self, mock_safe_eval, mock_vim):
         """When approval is disabled (default), tools execute without prompting"""
         mock_safe_eval.return_value = "0"  # Disabled
@@ -42,7 +41,6 @@ class TestToolApproval:
         assert "Current working directory:" in result
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_approval_allow_once(self, mock_safe_eval, mock_vim):
         """Test 'Allow Once' option - tool executes but not cached"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -57,12 +55,13 @@ class TestToolApproval:
         approved = get_approved_tools()
         assert "test_tool" not in approved
 
-        # Verify confirm was called
-        confirm_calls = [c for c in mock_vim.eval.call_args_list if "confirm" in str(c)]
-        assert len(confirm_calls) > 0
+        # Verify inputlist was called for tool approval prompt
+        inputlist_calls = [
+            c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+        ]
+        assert len(inputlist_calls) > 0
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_approval_always_allow(self, mock_safe_eval, mock_vim):
         """Test 'Always Allow' option - tool is cached for session"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -84,11 +83,12 @@ class TestToolApproval:
         assert is_approved is True
 
         # Verify confirm was NOT called again
-        confirm_calls = [c for c in mock_vim.eval.call_args_list if "confirm" in str(c)]
-        assert len(confirm_calls) == 0
+        inputlist_calls = [
+            c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+        ]
+        assert len(inputlist_calls) == 0
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_approval_deny(self, mock_safe_eval, mock_vim):
         """Test 'Deny' option - tool is blocked and cached"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -110,11 +110,12 @@ class TestToolApproval:
         assert is_approved is False
 
         # Verify confirm was NOT called again
-        confirm_calls = [c for c in mock_vim.eval.call_args_list if "confirm" in str(c)]
-        assert len(confirm_calls) == 0
+        inputlist_calls = [
+            c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+        ]
+        assert len(inputlist_calls) == 0
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_execute_tool_with_approval_enabled(self, mock_safe_eval, mock_vim):
         """Test full execute_tool flow with approval enabled"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -126,12 +127,13 @@ class TestToolApproval:
         # Should have executed successfully
         assert "Current working directory:" in result
 
-        # Should have prompted for approval
-        confirm_calls = [c for c in mock_vim.eval.call_args_list if "confirm" in str(c)]
-        assert len(confirm_calls) > 0
+        # Should have prompted for approval using inputlist
+        inputlist_calls = [
+            c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+        ]
+        assert len(inputlist_calls) > 0
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_execute_tool_denied(self, mock_safe_eval, mock_vim):
         """Test tool execution when denied"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -160,7 +162,6 @@ class TestToolApproval:
         assert len(approved) == 0
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_approval_different_tools_independent(self, mock_safe_eval, mock_vim):
         """Test that different tools have independent approval states"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -179,7 +180,6 @@ class TestToolApproval:
         assert approved["tool2"] == "denied"
 
     @patch("chatgpt.tools.vim")
-    @patch("chatgpt.tools.safe_vim_eval")
     def test_approval_prompt_includes_arguments(self, mock_safe_eval, mock_vim):
         """Test that approval prompt shows tool arguments"""
         mock_safe_eval.return_value = "1"  # Approval enabled
@@ -190,12 +190,14 @@ class TestToolApproval:
             "read_file", {"file_path": "/tmp/test.txt", "max_lines": 100}
         )
 
-        # Check that confirm was called with arguments in the message
-        confirm_calls = [c for c in mock_vim.eval.call_args_list if "confirm" in str(c)]
-        assert len(confirm_calls) > 0
+        # Check that inputlist was called with arguments in the message
+        inputlist_calls = [
+            c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+        ]
+        assert len(inputlist_calls) > 0
 
         # The call should contain the tool name and arguments
-        call_str = str(confirm_calls[0])
+        call_str = str(inputlist_calls[0])
         assert "read_file" in call_str
         assert "file_path" in call_str or "Arguments" in call_str
 

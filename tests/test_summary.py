@@ -128,15 +128,15 @@ Second response
             "vim_chatgpt_dir": vim_chatgpt_dir,
         }
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_generates_summary_for_new_conversation(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should generate summary for first time"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"  # 30KB recent window
+        mock_get_config.return_value = "30480"  # 30KB recent window
 
         generate_conversation_summary()
 
@@ -146,15 +146,15 @@ Second response
         assert "summary" in call_args.lower()
         assert "create_file" in call_args
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_extends_existing_summary(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should extend existing summary with new conversation"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # Create existing summary
         summary_file = mock_env["vim_chatgpt_dir"] / "summary.md"
@@ -174,18 +174,18 @@ Previous topics discussed"""
         assert "existing" in call_args.lower()
         assert "extend" in call_args.lower() or "add" in call_args.lower()
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_respects_recent_window_size(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should keep recent N bytes unsummarized"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
 
         # Set small recent window
         recent_window = 50
-        mock_safe_eval.return_value = str(recent_window)
+        mock_get_config.return_value = str(recent_window)
 
         history_size = os.path.getsize(mock_env["history_file"])
 
@@ -195,15 +195,15 @@ Previous topics discussed"""
         assert mock_chat_gpt.called
         # The prompt should not include the very last bytes
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_handles_missing_history_file(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, tmp_path
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, tmp_path
     ):
         """Should handle case when history file doesn't exist"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # No history file created
         generate_conversation_summary()
@@ -211,15 +211,15 @@ Previous topics discussed"""
         # Should not call chat_gpt
         assert not mock_chat_gpt.called
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_limits_compaction_size(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should limit amount of history to summarize in one go"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # Create large history file
         history_file = mock_env["history_file"]
@@ -233,15 +233,15 @@ Previous topics discussed"""
         # Should still work, just process limited amount
         assert mock_chat_gpt.called
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_handles_utf8_boundaries(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should handle UTF-8 character boundaries when seeking"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # Create history with multi-byte UTF-8 characters
         history_file = mock_env["history_file"]
@@ -259,15 +259,15 @@ Hi there! 👋
 
         assert mock_chat_gpt.called
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_includes_format_instructions(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should include formatting instructions in prompt"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         generate_conversation_summary()
 
@@ -280,15 +280,15 @@ Hi there! 👋
         assert "User Preferences" in call_args
         assert "Action Items" in call_args
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_instructs_to_save_with_create_file(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should instruct AI to use create_file tool"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         generate_conversation_summary()
 
@@ -303,17 +303,17 @@ Hi there! 👋
         )
         assert "summary.md" in call_args
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_calculates_cutoff_correctly(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should calculate cutoff byte position correctly"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
 
         recent_window = 1000
-        mock_safe_eval.return_value = str(recent_window)
+        mock_get_config.return_value = str(recent_window)
 
         history_file = mock_env["history_file"]
         history_size = os.path.getsize(history_file)
@@ -326,15 +326,15 @@ Hi there! 👋
         # The cutoff value is used internally, verify function completed
         assert mock_chat_gpt.called
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_strips_metadata_from_old_summary(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should strip metadata when including old summary in prompt"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # Create summary with metadata
         summary_file = mock_env["vim_chatgpt_dir"] / "summary.md"
@@ -358,15 +358,15 @@ This is the actual summary"""
         # But content should be included
         assert "Real Summary Content" in call_args
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_handles_zero_cutoff(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should handle case where cutoff is 0 (first summary)"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # First summary - no existing summary
         generate_conversation_summary()
@@ -377,37 +377,15 @@ This is the actual summary"""
         # Should not mention extending
         assert "extend" not in call_args.lower() or "create" in call_args.lower()
 
+    @patch("chatgpt.utils.get_config")
     @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
-    @patch("os.getcwd")
-    def test_uses_safe_vim_eval_for_config(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
-    ):
-        """Should use safe_vim_eval to get configuration"""
-        mock_getcwd.return_value = str(mock_env["tmp_path"])
-
-        # Set custom recent window size
-        custom_size = "50000"
-        mock_safe_eval.return_value = custom_size
-
-        generate_conversation_summary()
-
-        # Verify safe_vim_eval was called for config
-        assert mock_safe_eval.called
-        config_calls = [
-            c for c in mock_safe_eval.call_args_list if "recent_history_size" in str(c)
-        ]
-        assert len(config_calls) > 0
-
-    @patch("chatgpt.summary.chat_gpt")
-    @patch("chatgpt.utils.safe_vim_eval")
     @patch("os.getcwd")
     def test_preserves_instruction_to_keep_existing_content(
-        self, mock_getcwd, mock_safe_eval, mock_chat_gpt, mock_env
+        self, mock_getcwd, mock_chat_gpt, mock_get_config, mock_env
     ):
         """Should instruct AI to keep existing summary content"""
         mock_getcwd.return_value = str(mock_env["tmp_path"])
-        mock_safe_eval.return_value = "30480"
+        mock_get_config.return_value = "30480"
 
         # Create existing summary
         summary_file = mock_env["vim_chatgpt_dir"] / "summary.md"

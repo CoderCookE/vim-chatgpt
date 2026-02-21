@@ -9,7 +9,7 @@ import os
 import json
 import requests
 
-from chatgpt.utils import safe_vim_eval, debug_log, get_config
+from chatgpt.utils import debug_log, get_config
 
 
 # Provider abstraction layer for multi-provider support

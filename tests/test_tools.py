@@ -165,6 +165,19 @@ class TestValidateFilePath:
 class TestExecuteTool:
     """Test execute_tool() dispatcher and individual tool implementations"""
 
+    @pytest.fixture(autouse=True)
+    def disable_tool_approval(self):
+        """Disable tool approval for all tests in this class"""
+        with patch("chatgpt.tools.get_config") as mock_config:
+            # Return "0" for require_tool_approval to disable approval
+            def config_side_effect(key, default=None):
+                if key == "require_tool_approval":
+                    return "0"
+                return default
+
+            mock_config.side_effect = config_side_effect
+            yield mock_config
+
     def test_get_working_directory(self):
         """get_working_directory should return current directory"""
         result = execute_tool("get_working_directory", {})

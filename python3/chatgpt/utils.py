@@ -6,14 +6,6 @@ import os
 import vim
 
 
-def safe_vim_eval(expression):
-    """Safely evaluate a Vim expression"""
-    try:
-        return vim.eval(expression)
-    except vim.error:
-        return None
-
-
 def get_config(name, default=None):
     """
     Get configuration value with automatic fallback from old to new names.
@@ -104,7 +96,7 @@ LOG_LEVEL_MAP = {
 }
 
 
-def debug_log(msg):
+def debug_log(msg, force=False):
     """
     Write debug messages to a log file for troubleshooting.
 
@@ -115,15 +107,17 @@ def debug_log(msg):
     - ERROR: Error messages (level 3)
 
     If no prefix is provided, the message is treated as DEBUG level.
+
+    Args:
+        msg: The message to log
+        force: If True, always log regardless of configured level
     """
     try:
         import vim
 
-        configured_level = int(
-            vim.eval('exists("g:chat_gpt_log_level") ? g:chat_gpt_log_level : 0')
-        )
+        configured_level = int(get_config("log_level", "0"))
 
-        if configured_level == 0:
+        if configured_level == 0 and not force:
             return
 
         message_level = LOG_LEVEL_DEBUG
@@ -135,7 +129,7 @@ def debug_log(msg):
                 clean_msg = msg[len(prefix) :].strip()
                 break
 
-        if message_level < (configured_level - 1):
+        if not force and message_level < (configured_level - 1):
             return
 
         # Use project directory for debug log (cross-platform)
@@ -256,6 +250,30 @@ def load_plan():
     except Exception as e:
         debug_log(f"WARNING: Failed to load plan: {str(e)}")
         return None
+
+
+def clear_plan():
+    """
+    Delete the saved plan file.
+
+    This should be called when a plan is completed or the user wants to discard it.
+
+    Returns:
+        bool: True if plan was deleted, False if no plan existed or deletion failed
+    """
+    try:
+        plan_file = os.path.join(get_project_dir(), "plan.md")
+
+        if not os.path.exists(plan_file):
+            debug_log("INFO: No plan file to clear")
+            return False
+
+        os.remove(plan_file)
+        debug_log(f"INFO: Plan file deleted: {plan_file}")
+        return True
+    except Exception as e:
+        debug_log(f"ERROR: Failed to delete plan: {str(e)}")
+        return False
 
 
 # Formatting helpers for better chat display

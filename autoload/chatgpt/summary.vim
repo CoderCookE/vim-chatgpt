@@ -66,7 +66,18 @@ function! chatgpt#summary#check_and_update() abort
     let new_content_size = file_size - cutoff_byte
 
     if new_content_size > compaction_size
-        echo "Conversation grew by " . float2nr(new_content_size / 1024) . "KB. Compacting into summary..."
+        " Calculate actual growth in this session (if tracked)
+        let size_before = exists('g:chatgpt_history_size_before') ? g:chatgpt_history_size_before : cutoff_byte
+        let actual_growth = file_size - size_before
+        let growth_kb = float2nr(actual_growth / 1024)
+        let unsummarized_kb = float2nr(new_content_size / 1024)
+
+        " Show both the actual growth and total unsummarized amount for clarity
+        if actual_growth > 0 && actual_growth != new_content_size
+            echo "Added " . growth_kb . "KB. Total unsummarized: " . unsummarized_kb . "KB. Compacting into summary..."
+        else
+            echo "Conversation grew by " . unsummarized_kb . "KB. Compacting into summary..."
+        endif
 
         let save_cwd = getcwd()
         let save_session_mode = exists('g:llm_agent_session_mode') ? g:llm_agent_session_mode : (exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1)
@@ -81,7 +92,7 @@ function! chatgpt#summary#check_and_update() abort
         let g:llm_agent_require_tool_approval = 0
         let g:llm_agent_suppress_display = 1
 
-        call chatgpt#summary#generate()
+        call chatgpt#summary#generate(1)  " 1 = skip plan resume check (automatic compaction)
 
         let g:llm_agent_session_mode = save_session_mode
         let g:llm_agent_require_plan_approval = save_plan_approval
@@ -104,7 +115,7 @@ function! chatgpt#summary#check_and_update() abort
         let g:llm_agent_require_tool_approval = 0
         let g:llm_agent_suppress_display = 1
 
-        call chatgpt#summary#generate()
+        call chatgpt#summary#generate(1)  " 1 = skip plan resume check (automatic compaction)
 
         let g:llm_agent_session_mode = save_session_mode
         let g:llm_agent_require_plan_approval = save_plan_approval
@@ -115,7 +126,10 @@ function! chatgpt#summary#check_and_update() abort
 endfunction
 
 " Generate conversation summary
-function! chatgpt#summary#generate() abort
+" Optional argument: skip_plan_check (1 = skip plan resume prompt, 0 = show it)
+function! chatgpt#summary#generate(...) abort
+  let skip_plan_check = a:0 > 0 ? a:1 : 0
+
   " Determine which directory to use (new .vim-llm-agent or old .vim-chatgpt for backwards compatibility)
   let project_dir = getcwd()
   let vim_dir = project_dir . '/.vim-llm-agent'
@@ -146,4 +160,83 @@ EOF
 
   echo "\nConversation summary generated at " . dir_name . "/summary.md"
   echo "You can edit this file to add or modify preferences."
+
+  " Only check for plan resume if this is a manual operation (not automatic compaction)
+  if !skip_plan_check
+    call s:check_and_resume_plan()
+  endif
+endfunction
+
+" Check for active plan and offer to resume execution
+function! s:check_and_resume_plan() abort
+  let project_dir = getcwd()
+  let vim_dir = project_dir . '/.vim-llm-agent'
+  if !isdirectory(vim_dir)
+    let old_dir = project_dir . '/.vim-chatgpt'
+    if isdirectory(old_dir)
+      let vim_dir = old_dir
+    endif
+  endif
+  
+  let plan_file = vim_dir . '/plan.md'
+  
+  if !filereadable(plan_file)
+    return
+  endif
+  
+  " Read the plan
+  let plan_lines = readfile(plan_file)
+  let plan_text = join(plan_lines, "\n")
+  
+  " Strip metadata
+  let plan_text = substitute(plan_text, '^<!--.*-->\s*\n', '', '')
+  
+  if empty(trim(plan_text))
+    return
+  endif
+  
+  echo "\n"
+  echo "═══════════════════════════════════════════════════════════"
+  echo "  ACTIVE PLAN DETECTED"
+  echo "═══════════════════════════════════════════════════════════"
+  echo ""
+  echo plan_text
+  echo ""
+  echo "═══════════════════════════════════════════════════════════"
+  
+  let choice = inputlist([
+        \ '',
+        \ 'An active plan was found. Would you like to resume it?',
+        \ '',
+        \ '1. Yes - Resume plan execution',
+        \ '2. No - Keep plan but don''t resume now',
+        \ '3. Clear plan - Mark as completed',
+        \ '',
+        \ 'Choice: '
+        \ ])
+  
+  if choice == 1
+    " Resume the plan
+    echo "\nResuming plan execution..."
+    call chatgpt#chat("Plan approved. Please proceed.")
+  elseif choice == 3
+    " Clear the plan using Python function
+    python3 << EOF
+import vim
+import sys
+import os
+
+plugin_dir = vim.eval('expand("<sfile>:p:h:h:h")')
+python_path = os.path.join(plugin_dir, 'python3')
+if python_path not in sys.path:
+    sys.path.insert(0, python_path)
+
+from chatgpt.utils import clear_plan
+clear_plan()
+EOF
+    echo "\nPlan cleared."
+  else
+    " Keep plan for later
+    echo "\nPlan saved. You can resume it later with :Ask Plan approved. Please proceed."
+  endif
 endfunction

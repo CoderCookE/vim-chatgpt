@@ -14,9 +14,50 @@ import json
 import re
 import vim
 
-from chatgpt.utils import debug_log, format_separator, format_tool_result
+from chatgpt.utils import (
+    debug_log,
+    format_separator,
+    format_tool_result,
+    clear_plan,
+    load_plan,
+    get_config,
+)
 from chatgpt.providers import create_provider
 from chatgpt.tools import get_tool_definitions, execute_tool
+
+
+def is_plan_completed(response_text):
+    """
+    Detect if the AI's response indicates plan completion.
+
+    Looks for completion indicators like:
+    - "Goal achieved"
+    - "Plan completed"
+    - "All steps complete"
+    - Phase 3: COMPLETION sections
+
+    Args:
+        response_text: The AI's response text
+
+    Returns:
+        bool: True if completion indicators found
+    """
+    completion_patterns = [
+        r"goal\s+(has\s+been\s+)?achieved",
+        r"plan\s+(has\s+been\s+)?completed",
+        r"all\s+steps\s+(are\s+)?complete",
+        r"phase\s+3:\s*completion",
+        r"✅.*complete",
+        r"successfully\s+completed\s+all",
+        r"finished\s+(all\s+)?steps",
+    ]
+
+    text_lower = response_text.lower()
+    for pattern in completion_patterns:
+        if re.search(pattern, text_lower, re.IGNORECASE):
+            return True
+
+    return False
 
 
 def chat_gpt(prompt):
@@ -42,8 +83,6 @@ def chat_gpt(prompt):
     }
 
     # Get provider
-    from chatgpt.utils import safe_vim_eval, get_config
-
     provider_name = get_config("provider", "openai")
 
     try:
@@ -525,6 +564,12 @@ CRITICAL EXECUTION RULES:
                     )
                     debug_log(f"DEBUG: Breaking from main loop - conversation complete")
 
+                    # Check if plan was completed and clear it
+                    if accumulated_content and is_plan_completed(accumulated_content):
+                        clear_plan()
+                        debug_log("INFO: Plan completed - plan file deleted")
+
+                    break
                     # If model said something about using tools but didn't call them, log a warning
                     tool_mentions = [
                         "create_file",

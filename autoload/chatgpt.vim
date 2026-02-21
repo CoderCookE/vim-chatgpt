@@ -8,6 +8,18 @@ function! chatgpt#chat(prompt) abort
     let g:llm_agent_suppress_display = 0
   endif
 
+  " Track history file size before request for accurate growth calculation
+  let project_dir = getcwd()
+  let vim_dir = project_dir . '/.vim-llm-agent'
+  if !isdirectory(vim_dir)
+    let old_dir = project_dir . '/.vim-chatgpt'
+    if isdirectory(old_dir)
+      let vim_dir = old_dir
+    endif
+  endif
+  let history_file = vim_dir . '/history.txt'
+  let g:chatgpt_history_size_before = filereadable(history_file) ? getfsize(history_file) : 0
+
   python3 << EOF
 import sys
 import vim

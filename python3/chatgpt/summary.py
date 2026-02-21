@@ -6,9 +6,40 @@ the context window manageable while preserving important information.
 """
 
 import os
+import re
 import vim
 from chatgpt.core import chat_gpt
-from chatgpt.utils import debug_log
+from chatgpt.utils import debug_log, save_plan
+
+
+def extract_plan_from_conversation(conversation_text):
+    """
+    Extract an active plan from conversation text.
+
+    Looks for the standard plan format:
+    GOAL: ...
+    PLAN:
+    1. ...
+    2. ...
+    TOOLS REQUIRED: ...
+    ESTIMATED STEPS: ...
+
+    Args:
+        conversation_text: The conversation text to search
+
+    Returns:
+        str: The extracted plan text, or None if no plan found
+    """
+    # Look for plan pattern
+    plan_pattern = r"(GOAL:.*?PLAN:.*?TOOLS REQUIRED:.*?ESTIMATED STEPS:.*?)(?:\n\n|$)"
+    match = re.search(plan_pattern, conversation_text, re.DOTALL | re.IGNORECASE)
+
+    if match:
+        plan_text = match.group(1).strip()
+        debug_log(f"INFO: Extracted plan from conversation ({len(plan_text)} chars)")
+        return plan_text
+
+    return None
 
 
 def get_summary_cutoff(project_dir):
@@ -125,6 +156,15 @@ def generate_conversation_summary():
         debug_log(f"ERROR: Failed to read history: {str(e)}")
         return
 
+    # Extract and save any active plan from the conversation before summarizing
+    plan_file = os.path.join(project_dir, "plan.md")
+    if not os.path.exists(plan_file):
+        # Only extract if no plan file exists yet
+        extracted_plan = extract_plan_from_conversation(new_conversation)
+        if extracted_plan:
+            debug_log("INFO: Found active plan in conversation, saving to plan.md")
+            save_plan(extracted_plan)
+
     # Build the prompt
     prompt = ""
 
@@ -147,6 +187,10 @@ def generate_conversation_summary():
         prompt += "Please create a comprehensive summary of this conversation."
 
     # Add format instructions
+    # Check if there's an active plan that needs to be preserved
+    plan_file = os.path.join(project_dir, "plan.md")
+    has_active_plan = os.path.exists(plan_file)
+
     prompt += "\n\nGenerate a summary using this format:"
     prompt += "\n\n# Conversation Summary"
     prompt += "\n\n## Key Topics Discussed"
@@ -160,10 +204,13 @@ def generate_conversation_summary():
     prompt += "\n- Project-specific conventions"
     prompt += "\n\n## Action Items"
     prompt += "\n[Any pending tasks or future work mentioned]"
-    prompt += "\n\nNOTE: If there was an active plan during this conversation, DO NOT include it in the summary. "
-    prompt += (
-        "Plans are persisted separately in plan.md and will be loaded automatically."
-    )
+
+    if has_active_plan:
+        prompt += "\n\nNOTE: There is an active plan in plan.md. DO NOT include it in the summary. "
+        prompt += "The plan is persisted separately and will be loaded automatically after the summary."
+    else:
+        prompt += "\n\nNOTE: If there was an active plan during this conversation, extract it and I will save it separately. "
+        prompt += "Plans should NOT be included in the summary itself."
 
     # IMPORTANT: Ask the AI to save the file using the create_file tool
     # This ensures the metadata header gets added properly by the tool

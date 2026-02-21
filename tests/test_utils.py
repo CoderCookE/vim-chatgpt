@@ -17,7 +17,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "python3"))
 
 from chatgpt.utils import (
     debug_log,
-    safe_vim_eval,
     save_to_history,
     save_plan,
     load_plan,
@@ -47,26 +46,37 @@ class TestDebugLog:
         """Test that debug_log writes when enabled"""
         # Need to patch vim at the module level since debug_log imports it locally
         import sys
+        import tempfile
+        import os
 
         mock_vim = MagicMock()
         mock_vim.eval.return_value = "2"  # Set log level to 2
 
         with patch.dict("sys.modules", {"vim": mock_vim}):
-            with patch("builtins.open", mock_open()) as mock_file:
-                debug_log("WARNING: Test message")
+            # Mock get_project_dir to raise an exception, forcing fallback to temp
+            with patch(
+                "chatgpt.utils.get_project_dir", side_effect=Exception("No project dir")
+            ):
+                with patch("builtins.open", mock_open()) as mock_file:
+                    debug_log("WARNING: Test message")
 
-                # Check that open was called with the log file
-                mock_file.assert_called_once_with("/tmp/vim-chatgpt-debug.log", "a")
-                # Get the file handle from the context manager
-                handle = mock_file()
-                # Verify write was called
-                handle.write.assert_called()
-                # Check the content
-                written_content = "".join(
-                    call.args[0] for call in handle.write.call_args_list
-                )
-                assert "WARNING" in written_content
-                assert "Test message" in written_content
+                    # Check that open was called with the temp log file
+                    expected_path = os.path.join(
+                        tempfile.gettempdir(), "vim-llm-agent-debug.log"
+                    )
+                    mock_file.assert_called_once_with(
+                        expected_path, "a", encoding="utf-8"
+                    )
+                    # Get the file handle from the context manager
+                    handle = mock_file()
+                    # Verify write was called
+                    handle.write.assert_called()
+                    # Check the content
+                    written_content = "".join(
+                        call.args[0] for call in handle.write.call_args_list
+                    )
+                    assert "WARNING" in written_content
+                    assert "Test message" in written_content
 
     @patch("chatgpt.utils.vim")
     def test_debug_log_with_exception(self, mock_vim):
@@ -75,28 +85,6 @@ class TestDebugLog:
 
         # Should not raise exception
         debug_log("Test message")
-
-
-class TestSafeVimEval:
-    """Tests for safe_vim_eval function"""
-
-    @patch("chatgpt.utils.vim")
-    def test_safe_vim_eval_success(self, mock_vim):
-        """Test successful vim eval"""
-        mock_vim.eval.return_value = "test_value"
-        result = safe_vim_eval("g:test_var")
-        assert result == "test_value"
-
-    def test_safe_vim_eval_exception(self):
-        """Test safe_vim_eval handles vim.error"""
-        import sys
-        from tests.conftest import VimError
-
-        with patch("chatgpt.utils.vim") as mock_vim:
-            mock_vim.error = VimError
-            mock_vim.eval.side_effect = VimError("Vim error")
-            result = safe_vim_eval("g:test_var")
-            assert result is None
 
 
 class TestSaveToHistory:
@@ -403,6 +391,7 @@ class TestGetConfig:
     @patch("chatgpt.utils.vim")
     def test_uses_new_config_when_available(self, mock_vim):
         """Test that new config variable takes precedence"""
+        from tests.conftest import VimError
 
         # Setup: both old and new exist
         def eval_side_effect(expr):
@@ -413,6 +402,7 @@ class TestGetConfig:
             return ""
 
         mock_vim.eval.side_effect = eval_side_effect
+        mock_vim.error = VimError
 
         result = get_config("model")
 
@@ -422,6 +412,7 @@ class TestGetConfig:
     @patch("chatgpt.utils.vim")
     def test_falls_back_to_old_config(self, mock_vim):
         """Test fallback to old config variable"""
+        from tests.conftest import VimError
 
         # Setup: only old exists
         def eval_side_effect(expr):
@@ -432,6 +423,7 @@ class TestGetConfig:
             return ""
 
         mock_vim.eval.side_effect = eval_side_effect
+        mock_vim.error = VimError
 
         result = get_config("model")
 
@@ -441,7 +433,10 @@ class TestGetConfig:
     @patch("chatgpt.utils.vim")
     def test_returns_default_when_neither_exists(self, mock_vim):
         """Test default value when neither config exists"""
+        from tests.conftest import VimError
+
         mock_vim.eval.return_value = ""
+        mock_vim.error = VimError
 
         result = get_config("model", "default-model")
 
@@ -451,7 +446,10 @@ class TestGetConfig:
     @patch("chatgpt.utils.vim")
     def test_returns_none_when_no_default(self, mock_vim):
         """Test None return when neither exists and no default"""
+        from tests.conftest import VimError
+
         mock_vim.eval.return_value = ""
+        mock_vim.error = VimError
 
         result = get_config("model")
 
