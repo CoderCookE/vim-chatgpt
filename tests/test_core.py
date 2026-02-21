@@ -73,7 +73,6 @@ class TestChatGPT:
     def test_basic_chat_without_tools(
         self,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -82,10 +81,6 @@ class TestChatGPT:
     ):
         """Test basic chat flow without tool calling"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.side_effect = lambda x: {
-            "g:chat_gpt_provider": "openai",
-            "g:chat_gpt_session_mode": "0",
-        }.get(x, "0")
 
         # Mock vim.eval for the values used in chat_gpt
         mock_vim.eval.side_effect = lambda x: mock_vim_env.eval(x)
@@ -109,7 +104,6 @@ class TestChatGPT:
         self,
         mock_exists,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -118,7 +112,6 @@ class TestChatGPT:
     ):
         """Test that project context is loaded if available"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "openai"
         mock_create_provider.return_value = mock_provider
 
         # Mock vim.eval for the values used in chat_gpt
@@ -153,7 +146,6 @@ class TestChatGPT:
         self,
         mock_exists,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -162,7 +154,6 @@ class TestChatGPT:
     ):
         """Test that conversation summary is loaded if available"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "openai"
         mock_create_provider.return_value = mock_provider
 
         # Mock vim.eval for the values used in chat_gpt
@@ -207,7 +198,6 @@ Previous conversation summary"""
         self,
         mock_getcwd,
         mock_get_tools,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -216,7 +206,6 @@ Previous conversation summary"""
     ):
         """Test that tools are enabled when provider supports them"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "openai"
         mock_create_provider.return_value = mock_provider
 
         # Mock vim.eval for the values used in chat_gpt
@@ -247,7 +236,6 @@ Previous conversation summary"""
         mock_getcwd,
         mock_get_tools,
         mock_execute_tool,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -256,10 +244,6 @@ Previous conversation summary"""
     ):
         """Test that tools are executed and results added to messages"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.side_effect = lambda x: {
-            "g:chat_gpt_provider": "openai",
-            "g:chat_gpt_session_mode": "0",
-        }.get(x, "1")
 
         mock_create_provider.return_value = mock_provider
         mock_get_tools.return_value = [{"name": "test_tool"}]
@@ -305,7 +289,6 @@ Previous conversation summary"""
     def test_plan_approval_workflow(
         self,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -314,11 +297,6 @@ Previous conversation summary"""
     ):
         """Test plan approval workflow"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.side_effect = lambda x: {
-            "g:chat_gpt_provider": "openai",
-            "g:chat_gpt_session_mode": "0",
-            "g:chat_gpt_require_plan_approval": "1",
-        }.get(x, "1")
 
         mock_create_provider.return_value = mock_provider
 
@@ -381,7 +359,6 @@ ESTIMATED STEPS: 2"""
         self,
         mock_exists,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -390,10 +367,6 @@ ESTIMATED STEPS: 2"""
     ):
         """Test loading conversation history from file"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.side_effect = lambda x: {
-            "g:chat_gpt_provider": "openai",
-            "g:chat_gpt_session_mode": "1",
-        }.get(x, "1")
 
         mock_create_provider.return_value = mock_provider
 
@@ -425,7 +398,6 @@ Hi there!"""
     def test_max_tool_iterations(
         self,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -434,7 +406,6 @@ Hi there!"""
     ):
         """Test that tool execution loop has maximum iteration limit"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "openai"
         mock_create_provider.return_value = mock_provider
 
         # Link the patched vim with the fixture
@@ -505,7 +476,6 @@ Hi there!"""
     def test_streaming_display(
         self,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -514,7 +484,6 @@ Hi there!"""
     ):
         """Test that streaming content is displayed via Vim"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "openai"
         mock_create_provider.return_value = mock_provider
 
         # Link the patched vim with the fixture
@@ -599,7 +568,6 @@ Hi there!"""
     def test_message_format_for_different_providers(
         self,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -612,7 +580,6 @@ Hi there!"""
         mock_vim.eval.side_effect = lambda x: mock_vim_env.eval(x)
 
         # Test OpenAI format (list)
-        mock_safe_eval.return_value = "openai"
         openai_provider = Mock()
         openai_provider.get_model.return_value = "gpt-4"
         openai_provider.supports_tools.return_value = True
@@ -631,7 +598,6 @@ Hi there!"""
     def test_plan_cancellation(
         self,
         mock_getcwd,
-        mock_safe_eval,
         mock_create_provider,
         mock_vim,
         mock_vim_env,
@@ -640,7 +606,6 @@ Hi there!"""
     ):
         """Test user can cancel plan approval"""
         mock_getcwd.return_value = str(tmp_path)
-        mock_safe_eval.return_value = "openai"
         mock_create_provider.return_value = mock_provider
 
         plan_text = "GOAL: Test\n\nPLAN:\n1. Do something\n\nTOOLS REQUIRED: test"

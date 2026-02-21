@@ -42,41 +42,40 @@ class TestDebugLog:
             debug_log("Test message")
             mock_file.assert_not_called()
 
-    def test_debug_log_enabled(self):
+    @patch("chatgpt.utils.vim")
+    @patch("chatgpt.utils.get_config")
+    def test_debug_log_enabled(self, mock_get_config, mock_vim):
         """Test that debug_log writes when enabled"""
-        # Need to patch vim at the module level since debug_log imports it locally
-        import sys
         import tempfile
         import os
 
-        mock_vim = MagicMock()
         mock_vim.eval.return_value = "2"  # Set log level to 2
+        mock_get_config.return_value = "2"  # Log level 2
 
-        with patch.dict("sys.modules", {"vim": mock_vim}):
-            # Mock get_project_dir to raise an exception, forcing fallback to temp
-            with patch(
-                "chatgpt.utils.get_project_dir", side_effect=Exception("No project dir")
-            ):
-                with patch("builtins.open", mock_open()) as mock_file:
-                    debug_log("WARNING: Test message")
+        # Mock get_project_dir to raise an exception, forcing fallback to temp
+        with patch(
+            "chatgpt.utils.get_project_dir", side_effect=Exception("No project dir")
+        ):
+            with patch("builtins.open", mock_open()) as mock_file:
+                debug_log("WARNING: Test message")
 
-                    # Check that open was called with the temp log file
-                    expected_path = os.path.join(
-                        tempfile.gettempdir(), "vim-llm-agent-debug.log"
-                    )
-                    mock_file.assert_called_once_with(
-                        expected_path, "a", encoding="utf-8"
-                    )
-                    # Get the file handle from the context manager
-                    handle = mock_file()
-                    # Verify write was called
-                    handle.write.assert_called()
-                    # Check the content
-                    written_content = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
-                    assert "WARNING" in written_content
-                    assert "Test message" in written_content
+                # Check that open was called with the temp log file
+                expected_path = os.path.join(
+                    tempfile.gettempdir(), "vim-llm-agent-debug.log"
+                )
+                mock_file.assert_called_once_with(
+                    expected_path, "a", encoding="utf-8"
+                )
+                # Get the file handle from the context manager
+                handle = mock_file()
+                # Verify write was called
+                handle.write.assert_called()
+                # Check the content
+                written_content = "".join(
+                    call.args[0] for call in handle.write.call_args_list
+                )
+                assert "WARNING" in written_content
+                assert "Test message" in written_content
 
     @patch("chatgpt.utils.vim")
     def test_debug_log_with_exception(self, mock_vim):
@@ -247,12 +246,13 @@ class TestSavePlan:
     """Tests for save_plan function"""
 
     @patch("chatgpt.utils.vim")
+    @patch("chatgpt.utils.debug_log")
     @patch("os.path.exists")
     @patch("os.makedirs")
     @patch("os.getcwd")
     @patch("builtins.open", new_callable=mock_open)
     def test_saves_plan_to_file(
-        self, mock_file, mock_getcwd, mock_makedirs, mock_exists, mock_vim
+        self, mock_file, mock_getcwd, mock_makedirs, mock_exists, mock_debug_log, mock_vim
     ):
         """Test that save_plan writes plan to plan.md in project directory"""
         mock_vim.eval.return_value = "1"  # Session mode enabled
@@ -280,12 +280,13 @@ PLAN:
         assert "GOAL: Test the feature" in written_content
         assert "Step one" in written_content
 
+    @patch("chatgpt.utils.debug_log")
     @patch("chatgpt.utils.vim")
     @patch("os.path.exists")
     @patch("os.makedirs")
     @patch("os.getcwd")
     def test_creates_directory_if_not_exists(
-        self, mock_getcwd, mock_makedirs, mock_exists, mock_vim
+        self, mock_getcwd, mock_makedirs, mock_exists, mock_vim, mock_debug_log
     ):
         """Test that save_plan creates project directory if needed"""
         mock_vim.eval.return_value = "1"  # Session mode enabled
