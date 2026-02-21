@@ -6,12 +6,80 @@ import os
 import vim
 
 
-def safe_vim_eval(expression):
-    """Safely evaluate a Vim expression"""
+def get_config(name, default=None):
+    """
+    Get configuration value with automatic fallback from old to new names.
+
+    Supports backwards compatibility by checking:
+    1. New name: g:llm_agent_{name}
+    2. Old name: g:chat_gpt_{name} (deprecated, for backward compatibility)
+    3. Default value
+
+    Args:
+        name: Config variable name (without prefix)
+        default: Default value if neither variable exists
+
+    Returns:
+        Configuration value or default
+
+    Examples:
+        get_config('api_key') checks g:llm_agent_api_key then g:chat_gpt_api_key
+        get_config('model', 'gpt-4') returns 'gpt-4' if neither is set
+
+    Note:
+        The old g:chat_gpt_* naming is deprecated. Please migrate to g:llm_agent_*.
+    """
+    # Try new name first
+    new_var = f"g:llm_agent_{name}"
     try:
-        return vim.eval(expression)
+        new_val = vim.eval(f'exists("{new_var}") ? {new_var} : ""')
+        if new_val and new_val != "":
+            return new_val
     except vim.error:
-        return None
+        pass
+
+    # Fall back to old name for backward compatibility
+    old_var = f"g:chat_gpt_{name}"
+    try:
+        old_val = vim.eval(f'exists("{old_var}") ? {old_var} : ""')
+        if old_val and old_val != "":
+            # Log deprecation warning (only once per variable)
+            debug_log(
+                f"WARNING: {old_var} is deprecated. Please use {new_var} instead.",
+                force=True,
+            )
+            return old_val
+    except vim.error:
+        pass
+
+    # Return default
+    return default
+
+
+def get_project_dir():
+    """
+    Get the project data directory with automatic fallback.
+
+    Checks for:
+    1. .vim-llm-agent/ (new name)
+    2. .vim-chatgpt/ (old name, for backwards compatibility)
+
+    Returns:
+        str: Directory name to use (.vim-llm-agent or .vim-chatgpt)
+    """
+    new_dir = os.path.join(os.getcwd(), ".vim-llm-agent")
+    old_dir = os.path.join(os.getcwd(), ".vim-chatgpt")
+
+    # If new directory exists, use it
+    if os.path.exists(new_dir):
+        return new_dir
+
+    # If old directory exists, use it (backwards compatibility)
+    if os.path.exists(old_dir):
+        return old_dir
+
+    # Neither exists - return new name (will be created)
+    return new_dir
 
 
 # Log level constants
@@ -21,14 +89,14 @@ LOG_LEVEL_WARNING = 2
 LOG_LEVEL_ERROR = 3
 
 LOG_LEVEL_MAP = {
-    'DEBUG:': LOG_LEVEL_DEBUG,
-    'INFO:': LOG_LEVEL_INFO,
-    'WARNING:': LOG_LEVEL_WARNING,
-    'ERROR:': LOG_LEVEL_ERROR,
+    "DEBUG:": LOG_LEVEL_DEBUG,
+    "INFO:": LOG_LEVEL_INFO,
+    "WARNING:": LOG_LEVEL_WARNING,
+    "ERROR:": LOG_LEVEL_ERROR,
 }
 
 
-def debug_log(msg):
+def debug_log(msg, force=False):
     """
     Write debug messages to a log file for troubleshooting.
 
@@ -39,12 +107,17 @@ def debug_log(msg):
     - ERROR: Error messages (level 3)
 
     If no prefix is provided, the message is treated as DEBUG level.
+
+    Args:
+        msg: The message to log
+        force: If True, always log regardless of configured level
     """
     try:
         import vim
-        configured_level = int(vim.eval('exists("g:chat_gpt_log_level") ? g:chat_gpt_log_level : 0'))
 
-        if configured_level == 0:
+        configured_level = int(get_config("log_level", "0"))
+
+        if configured_level == 0 and not force:
             return
 
         message_level = LOG_LEVEL_DEBUG
@@ -53,21 +126,33 @@ def debug_log(msg):
         for prefix, level in LOG_LEVEL_MAP.items():
             if msg.startswith(prefix):
                 message_level = level
-                clean_msg = msg[len(prefix):].strip()
+                clean_msg = msg[len(prefix) :].strip()
                 break
 
-        if message_level < (configured_level - 1):
+        if not force and message_level < (configured_level - 1):
             return
 
-        log_file = '/tmp/vim-chatgpt-debug.log'
+        # Use project directory for debug log (cross-platform)
+        try:
+            project_dir = get_project_dir()
+            # Create directory if it doesn't exist
+            if not os.path.exists(project_dir):
+                os.makedirs(project_dir)
+            log_file = os.path.join(project_dir, "debug.log")
+        except Exception:
+            # Fallback to temp directory if project dir fails (cross-platform)
+            import tempfile
+
+            log_file = os.path.join(tempfile.gettempdir(), "vim-llm-agent-debug.log")
 
         from datetime import datetime
-        timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-        level_name = [k for k, v in LOG_LEVEL_MAP.items() if v == message_level]
-        level_str = level_name[0].rstrip(':') if level_name else 'DEBUG'
 
-        with open(log_file, 'a') as f:
-            f.write(f'[{timestamp}] [{level_str}] {clean_msg}\n')
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        level_name = [k for k, v in LOG_LEVEL_MAP.items() if v == message_level]
+        level_str = level_name[0].rstrip(":") if level_name else "DEBUG"
+
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [{level_str}] {clean_msg}\n")
     except Exception as e:
         pass
 
@@ -75,17 +160,19 @@ def debug_log(msg):
 def save_to_history(content):
     """Save content to history file"""
     try:
-        session_enabled = int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1
+        # Check both old and new variable names for backwards compatibility
+        session_mode = get_config("session_mode", "1")
+        session_enabled = int(session_mode) == 1
         if not session_enabled:
             return
 
-        vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
-        history_file = os.path.join(vim_chatgpt_dir, 'history.txt')
+        project_dir = get_project_dir()
+        history_file = os.path.join(project_dir, "history.txt")
 
-        if not os.path.exists(vim_chatgpt_dir):
-            os.makedirs(vim_chatgpt_dir)
+        if not os.path.exists(project_dir):
+            os.makedirs(project_dir)
 
-        with open(history_file, 'a', encoding='utf-8') as f:
+        with open(history_file, "a", encoding="utf-8") as f:
             f.write(content)
     except Exception as e:
         pass
@@ -93,7 +180,7 @@ def save_to_history(content):
 
 def save_plan(plan_content):
     """
-    Save the approved plan to .vim-chatgpt/plan.md
+    Save the approved plan to plan.md in the project directory
 
     This ensures the plan persists across conversation compactions and sessions.
 
@@ -101,27 +188,35 @@ def save_plan(plan_content):
         plan_content: The plan text to save
     """
     try:
-        session_enabled = int(vim.eval('exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1')) == 1
+        session_enabled = (
+            int(
+                vim.eval(
+                    'exists("g:chat_gpt_session_mode") ? g:chat_gpt_session_mode : 1'
+                )
+            )
+            == 1
+        )
         if not session_enabled:
             debug_log("INFO: Session mode disabled, not saving plan")
             return
 
-        vim_chatgpt_dir = os.path.join(os.getcwd(), '.vim-chatgpt')
-        plan_file = os.path.join(vim_chatgpt_dir, 'plan.md')
+        project_dir = get_project_dir()
+        plan_file = os.path.join(project_dir, "plan.md")
 
-        if not os.path.exists(vim_chatgpt_dir):
-            os.makedirs(vim_chatgpt_dir)
+        if not os.path.exists(project_dir):
+            os.makedirs(project_dir)
 
         # Add metadata header
         from datetime import datetime
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         content_with_metadata = f"""<!-- Plan saved at: {timestamp} -->
 
 {plan_content.strip()}
 """
 
-        with open(plan_file, 'w', encoding='utf-8') as f:
+        with open(plan_file, "w", encoding="utf-8") as f:
             f.write(content_with_metadata)
 
         debug_log(f"INFO: Plan saved to {plan_file}")
@@ -131,29 +226,54 @@ def save_plan(plan_content):
 
 def load_plan():
     """
-    Load the saved plan from .vim-chatgpt/plan.md
+    Load the saved plan from plan.md in the project directory
 
     Returns:
         str: The plan content, or None if no plan exists
     """
     try:
-        plan_file = os.path.join(os.getcwd(), '.vim-chatgpt', 'plan.md')
+        plan_file = os.path.join(get_project_dir(), "plan.md")
 
         if not os.path.exists(plan_file):
             return None
 
-        with open(plan_file, 'r', encoding='utf-8') as f:
+        with open(plan_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Strip metadata comments
         import re
-        content = re.sub(r'<!--.*?-->\s*\n', '', content, flags=re.DOTALL)
+
+        content = re.sub(r"<!--.*?-->\s*\n", "", content, flags=re.DOTALL)
 
         debug_log(f"INFO: Loaded plan from {plan_file}")
         return content.strip()
     except Exception as e:
         debug_log(f"WARNING: Failed to load plan: {str(e)}")
         return None
+
+
+def clear_plan():
+    """
+    Delete the saved plan file.
+
+    This should be called when a plan is completed or the user wants to discard it.
+
+    Returns:
+        bool: True if plan was deleted, False if no plan existed or deletion failed
+    """
+    try:
+        plan_file = os.path.join(get_project_dir(), "plan.md")
+
+        if not os.path.exists(plan_file):
+            debug_log("INFO: No plan file to clear")
+            return False
+
+        os.remove(plan_file)
+        debug_log(f"INFO: Plan file deleted: {plan_file}")
+        return True
+    except Exception as e:
+        debug_log(f"ERROR: Failed to delete plan: {str(e)}")
+        return False
 
 
 # Formatting helpers for better chat display
@@ -171,10 +291,10 @@ def format_box(title, content="", width=60):
             lines.append("║" + " " * (width - 2) + "║")
 
     if content:
-        for line in content.split('\n'):
+        for line in content.split("\n"):
             while len(line) > width - 6:
                 lines.append(f"║  {line[:width-6]}  ║")
-                line = line[width-6:]
+                line = line[width - 6 :]
             if line:
                 line_padded = f"  {line}".ljust(width - 2)
                 lines.append(f"║{line_padded}║")
@@ -215,12 +335,14 @@ def format_tool_result(tool_name, tool_args, result, max_lines=20):
     header = format_separator("─", 60)
     tool_call_str = format_tool_call(tool_name, tool_args, "success")
 
-    result_lines = result.split('\n')
+    result_lines = result.split("\n")
     if len(result_lines) > max_lines:
         result_lines = result_lines[:max_lines]
-        result_lines.append(f"... (truncated, {len(result.split(chr(10))) - max_lines} more lines)")
+        result_lines.append(
+            f"... (truncated, {len(result.split(chr(10))) - max_lines} more lines)"
+        )
 
-    result_formatted = '\n'.join(f"  {line}" for line in result_lines)
+    result_formatted = "\n".join(f"  {line}" for line in result_lines)
 
     return f"\n{header}\n{tool_call_str}\n\nOutput:\n{result_formatted}\n{header}\n"
 
@@ -238,9 +360,66 @@ def format_plan_display(plan_type, explanation, tool_calls):
 
     content_parts.append("Tools to execute:")
     for i, tc in enumerate(tool_calls, 1):
-        args_str = ", ".join(f"{k}={repr(v)[:30]}" for k, v in tc['arguments'].items())
+        args_str = ", ".join(f"{k}={repr(v)[:30]}" for k, v in tc["arguments"].items())
         content_parts.append(f"  {i}. {tc['name']}({args_str})")
 
     content = "\n".join(content_parts)
 
     return "\n\n" + format_box(title, content, width=70) + "\n"
+
+
+def parse_conversation_history(history_text):
+    """
+    Parse conversation history text into structured messages.
+    
+    The history format is:
+    >>>User:
+    <user message>
+    
+    >>>Assistant:
+    <assistant response>
+    
+    Args:
+        history_text: Raw conversation history text
+        
+    Returns:
+        list: List of message dicts with 'role' and 'content' keys
+    """
+    messages = []
+    current_role = None
+    current_content = []
+    
+    for line in history_text.split('\n'):
+        if line.strip() == '\x01>>>User:\x01':
+            # Save previous message if exists
+            if current_role and current_content:
+                messages.append({
+                    'role': current_role,
+                    'content': '\n'.join(current_content).strip()
+                })
+            # Start new user message
+            current_role = 'user'
+            current_content = []
+        elif line.strip() == '\x01>>>Assistant:\x01':
+            # Save previous message if exists
+            if current_role and current_content:
+                messages.append({
+                    'role': current_role,
+                    'content': '\n'.join(current_content).strip()
+                })
+            # Start new assistant message
+            current_role = 'assistant'
+            current_content = []
+        else:
+            # Accumulate content for current message
+            if current_role:
+                current_content.append(line)
+    
+    # Save final message
+    if current_role and current_content:
+        messages.append({
+            'role': current_role,
+            'content': '\n'.join(current_content).strip()
+        })
+    
+    return messages

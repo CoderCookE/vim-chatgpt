@@ -4,9 +4,21 @@
 " Main ChatGPT function - delegates to Python
 function! chatgpt#chat(prompt) abort
   " Ensure suppress_display is off for normal chat operations
-  if !exists('g:chat_gpt_suppress_display')
-    let g:chat_gpt_suppress_display = 0
+  if !exists('g:llm_agent_suppress_display') && !exists('g:chat_gpt_suppress_display')
+    let g:llm_agent_suppress_display = 0
   endif
+
+  " Track history file size before request for accurate growth calculation
+  let project_dir = getcwd()
+  let vim_dir = project_dir . '/.vim-llm-agent'
+  if !isdirectory(vim_dir)
+    let old_dir = project_dir . '/.vim-chatgpt'
+    if isdirectory(old_dir)
+      let vim_dir = old_dir
+    endif
+  endif
+  let history_file = vim_dir . '/history.txt'
+  let g:chatgpt_history_size_before = filereadable(history_file) ? getfsize(history_file) : 0
 
   python3 << EOF
 import sys
@@ -24,13 +36,15 @@ from chatgpt.core import chat_gpt
 chat_gpt(vim.eval('a:prompt'))
 EOF
 
+
   " Check if summary needs updating after AI response completes
-  if !exists('g:chat_gpt_suppress_display') || g:chat_gpt_suppress_display == 0
+  let suppress_display = exists('g:llm_agent_suppress_display') ? g:llm_agent_suppress_display : (exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0)
+  if suppress_display == 0
     call chatgpt#summary#check_and_update()
   endif
 
   " Ensure we're in the chat window at the bottom
-  if !exists('g:chat_gpt_suppress_display') || g:chat_gpt_suppress_display == 0
+  if suppress_display == 0
     let chat_winnr = bufwinnr('gpt-persistent-session')
     if chat_winnr != -1
       execute chat_winnr . 'wincmd w'
@@ -46,9 +60,9 @@ function! chatgpt#display_response(response, finish_reason, chat_gpt_session_id)
   let response = a:response
   let finish_reason = a:finish_reason
   let chat_gpt_session_id = a:chat_gpt_session_id
-
   if !bufexists(chat_gpt_session_id)
-    if g:chat_gpt_split_direction ==# 'vertical'
+    let split_dir = exists('g:llm_agent_split_direction') ? g:llm_agent_split_direction : (exists('g:chat_gpt_split_direction') ? g:chat_gpt_split_direction : 'vertical')
+    if split_dir ==# 'vertical'
       silent execute winwidth(0)/g:split_ratio.'vnew '. chat_gpt_session_id
     else
       silent execute winheight(0)/g:split_ratio.'new '. chat_gpt_session_id
@@ -64,7 +78,8 @@ function! chatgpt#display_response(response, finish_reason, chat_gpt_session_id)
   endif
 
   if bufwinnr(chat_gpt_session_id) == -1
-    if g:chat_gpt_split_direction ==# 'vertical'
+    let split_dir = exists('g:llm_agent_split_direction') ? g:llm_agent_split_direction : (exists('g:chat_gpt_split_direction') ? g:chat_gpt_split_direction : 'vertical')
+    if split_dir ==# 'vertical'
       execute winwidth(0)/g:split_ratio.'vsplit ' . chat_gpt_session_id
     else
       execute winheight(0)/g:split_ratio.'split ' . chat_gpt_session_id

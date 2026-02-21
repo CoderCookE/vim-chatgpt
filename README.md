@@ -1,13 +1,24 @@
-# ChatGPT Vim Plugin
+# vim-llm-agent
 
-This Vim plugin brings the power of AI language models into your Vim editor, enabling you to request code explanations or improvements directly within Vim. With this plugin, you can effortlessly highlight code snippets and ask AI to explain, review, or rewrite them, with the option to include additional context for better results.
+A full-featured LLM agent for Vim with multi-provider support and autonomous tool execution capabilities.
+
+This plugin brings the power of AI language models and agentic workflows directly into your Vim editor. Go beyond simple chat - the agent can autonomously execute file operations, git commands, and complex multi-step tasks with plan approval and tool calling.
+
+**Key Features:**
+- 🤖 **Agentic Workflows** - Plan approval system with autonomous tool execution
+- 🔧 **Tool Calling** - File operations, git integration, project exploration
+- 💬 **Context-Aware** - Session persistence, conversation summaries, project context
+- 🔄 **Multi-Provider** - OpenAI, Anthropic (Claude), Google (Gemini), Ollama, OpenRouter
+- 📝 **Code Intelligence** - Explain, review, refactor code with visual selections
 
 **Supported Providers:**
-- OpenAI (ChatGPT, GPT-4, etc.)
-- Anthropic (Claude)
-- Gemini (Google)
-- Ollama (local models)
-- OpenRouter (unified API for multiple providers)
+- OpenAI (ChatGPT, GPT-4, GPT-4o, etc.)
+- Anthropic (Claude 3.5 Sonnet, Claude 3 Opus, etc.)
+- Google (Gemini)
+- Ollama (local models - Llama, Mistral, etc.)
+- OpenRouter (unified API for 100+ models)
+
+> **Note:** This plugin was previously named `vim-chatgpt`. It has been renamed to `vim-llm-agent` to better reflect its multi-provider capabilities. **Full backwards compatibility is maintained** - all old configuration variables and directory names continue to work. See [MIGRATION.md](MIGRATION.md) for details.
 
 ## Prerequisites
 
@@ -44,7 +55,7 @@ export OPENAI_API_KEY='sk-...'
 Or in your `.vimrc`:
 ```vim
 let g:openai_api_key='sk-...'
-let g:chat_gpt_model='gpt-4o'  " Optional: specify model
+let g:llm_agent_model='gpt-4o'  " Optional: specify model
 ```
 
 **With Proxy or Custom Base URL:**
@@ -62,7 +73,7 @@ let g:openai_base_url='https://openai.xxx.cloud/v1'  " Custom base URL (alternat
 **Azure OpenAI:**
 ```vim
 let g:api_type = 'azure'
-let g:chat_gpt_key = 'your_azure_chatgpt_api'
+let g:llm_agent_key = 'your_azure_chatgpt_api'
 let g:azure_endpoint = 'your_azure_endpoint'
 let g:azure_deployment = 'your_azure_deployment'
 let g:azure_api_version = '2023-03-15-preview'
@@ -78,7 +89,7 @@ export ANTHROPIC_API_KEY='sk-ant-...'
 
 Or in your `.vimrc`:
 ```vim
-let g:chat_gpt_provider = 'anthropic'
+let g:llm_agent_provider = 'anthropic'
 let g:anthropic_api_key = 'sk-ant-...'
 let g:anthropic_model = 'claude-sonnet-4-5-20250929'  " Optional
 ```
@@ -103,7 +114,7 @@ export GEMINI_API_KEY='...'
 
 Or in your `.vimrc`:
 ```vim
-let g:chat_gpt_provider = 'gemini'
+let g:llm_agent_provider = 'gemini'
 let g:gemini_api_key = '...'
 let g:gemini_model = 'gemini-2.5-flash'  " Optional
 ```
@@ -113,7 +124,7 @@ let g:gemini_model = 'gemini-2.5-flash'  " Optional
 Install Ollama from: https://ollama.ai
 
 ```vim
-let g:chat_gpt_provider = 'ollama'
+let g:llm_agent_provider = 'ollama'
 let g:ollama_model = 'llama3.2'  " or codellama, mistral, etc.
 let g:ollama_base_url = 'http://localhost:11434'  " Optional
 ```
@@ -128,7 +139,7 @@ export OPENROUTER_API_KEY='sk-or-...'
 
 Or in your `.vimrc`:
 ```vim
-let g:chat_gpt_provider = 'openrouter'
+let g:llm_agent_provider = 'openrouter'
 let g:openrouter_api_key = 'sk-or-...'
 let g:openrouter_model = 'anthropic/claude-3.5-sonnet'  " Choose any available model
 let g:openrouter_base_url = 'https://openrouter.ai/api/v1'  " Optional: custom base URL (default shown)
@@ -140,10 +151,10 @@ let g:openrouter_base_url = 'https://openrouter.ai/api/v1'  " Optional: custom b
 
 ```vim
 " Select your AI provider (default: 'openai')
-let g:chat_gpt_provider = 'openai'  " Options: 'openai', 'anthropic', 'gemini', 'ollama', 'openrouter'
+let g:llm_agent_provider = 'openai'  " Options: 'openai', 'anthropic', 'gemini', 'ollama', 'openrouter'
 
 " Provider-specific models (optional - defaults shown)
-let g:chat_gpt_model = 'gpt-4o'                           " For OpenAI
+let g:llm_agent_model = 'gpt-4o'                           " For OpenAI
 let g:anthropic_model = 'claude-sonnet-4-5-20250929'      " For Anthropic
 let g:gemini_model = 'gemini-2.5-flash'               " For Gemini
 let g:ollama_model = 'llama3.2'                           " For Ollama
@@ -153,43 +164,47 @@ let g:openrouter_model = 'anthropic/claude-3.5-sonnet'    " For OpenRouter
 ### General Options
 
 ```vim
-let g:chat_gpt_max_tokens=2000
-let g:chat_gpt_session_mode=1
-let g:chat_gpt_temperature = 0.7
-let g:chat_gpt_lang = 'Chinese'
-let g:chat_gpt_split_direction = 'vertical'
+let g:llm_agent_max_tokens=2000
+let g:llm_agent_session_mode=1
+let g:llm_agent_temperature = 0.7
+let g:llm_agent_lang = 'Chinese'
+let g:llm_agent_split_direction = 'vertical'
 let g:split_ratio=4
-let g:chat_gpt_enable_tools=1
+let g:llm_agent_enable_tools=1
 let g:chat_persona='default'
-let g:chat_gpt_log_level=0  " 0=off, 1=basic, 2=verbose
+let g:llm_agent_log_level=0  " 0=off, 1=basic, 2=verbose
 ```
 
 **Option Details:**
 
- - **g:chat_gpt_provider**: Select which AI provider to use. Options: `'openai'`, `'anthropic'`, `'gemini'`, `'ollama'`, `'openrouter'`. Default: `'openai'`
- - **g:chat_gpt_max_tokens**: Maximum number of tokens in the AI response. Default: 2000
- - **g:chat_gpt_model**: Model name for OpenAI (e.g., `'gpt-4o'`, `'gpt-3.5-turbo'`, `'o1'`). Note: When using other providers, use their respective model variables instead.
- - **g:chat_gpt_session_mode**: Maintain persistent conversation history across sessions. Default: 1 (enabled). When enabled, conversations are saved to `.vim-chatgpt/history.txt`. Set to 0 to disable history persistence.
- - **g:chat_gpt_temperature**: Controls response randomness (0.0-1.0). Higher = more creative, lower = more focused. Default: 0.7
- - **g:chat_gpt_lang**: Request responses in a specific language (e.g., `'Chinese'`, `'Spanish'`). Default: none (English)
- - **g:chat_gpt_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'vertical'`
+ - **g:llm_agent_provider**: Select which AI provider to use. Options: `'openai'`, `'anthropic'`, `'gemini'`, `'ollama'`, `'openrouter'`. Default: `'openai'`
+ - **g:llm_agent_max_tokens**: Maximum number of tokens in the AI response. Default: 2000
+ - **g:llm_agent_model**: Model name for OpenAI (e.g., `'gpt-4o'`, `'gpt-3.5-turbo'`, `'o1'`). Note: When using other providers, use their respective model variables instead.
+ - **g:llm_agent_session_mode**: Maintain persistent conversation history across sessions. Default: 1 (enabled). When enabled, conversations are saved to `.vim-llm-agent/history.txt`. Set to 0 to disable history persistence.
+ - **g:llm_agent_temperature**: Controls response randomness (0.0-1.0). Higher = more creative, lower = more focused. Default: 0.7
+ - **g:llm_agent_lang**: Request responses in a specific language (e.g., `'Chinese'`, `'Spanish'`). Default: none (English)
+ - **g:llm_agent_split_direction**: Window split direction: `'vertical'` or `'horizontal'`. Default: `'vertical'`
  - **g:split_ratio**: Split window size ratio. If set to 4, the window will be 1/4 of the screen. Default: 3
- - **g:chat_persona**: Default AI persona to load on startup. Must match a key in `g:gpt_personas` or `g:chat_gpt_custom_persona`. Default: `'default'`. See [Custom Personas](#custom-personas) section.
- - **g:chat_gpt_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
- - **g:chat_gpt_require_plan_approval**: Require user approval before executing tool-based plans. When enabled, the AI will present a plan first, wait for approval, then execute tools in batches of 3 iterations with review points. Default: 1 (enabled).
- - **g:chat_gpt_summary_compaction_size**: Trigger summary regeneration after this many bytes of new conversation since last summary. Default: 51200 (50KB). This implements automatic conversation compaction.
- - **g:chat_gpt_recent_history_size**: Keep this many bytes of recent conversation uncompressed. Older content gets compressed into summary. Default: 20480 (20KB). Controls the sliding window size.
+ - **g:chat_persona**: Default AI persona to load on startup. Must match a key in `g:gpt_personas` or `g:llm_agent_custom_persona`. Default: `'default'`. See [Custom Personas](#custom-personas) section.
+ - **g:llm_agent_enable_tools**: Enable AI tool/function calling capabilities (allows AI to search files, read files, etc.). Default: 1 (enabled). Supported by OpenAI and Anthropic providers.
+ - **g:llm_agent_require_plan_approval**: Require user approval before executing tool-based plans. When enabled, the AI will present a plan first, wait for approval, then execute tools in batches of 3 iterations with review points. Default: 1 (enabled).
+ - **g:chat_gpt_require_tool_approval**: Require individual tool approval on first use. When enabled, you'll be prompted to approve/deny each new tool the first time the AI attempts to use it. Default: 1 (enabled). Options:
+   - **Allow Once**: Approve this single tool execution
+   - **Always Allow**: Remember approval for this tool in the current session
+   - **Deny**: Block this tool and remember the denial
+ - **g:llm_agent_summary_compaction_size**: Trigger summary regeneration after this many bytes of new conversation since last summary. Default: 51200 (50KB). This implements automatic conversation compaction.
+ - **g:llm_agent_recent_history_size**: Keep this many bytes of recent conversation uncompressed. Older content gets compressed into summary. Default: 20480 (20KB). Controls the sliding window size.
 
 **Advanced Options:**
 
- - **g:chat_gpt_log_level**: Debug logging level for troubleshooting. Default: 0 (disabled). Options:
+ - **g:llm_agent_log_level**: Debug logging level for troubleshooting. Default: 0 (disabled). Options:
    - `0` - Logging disabled
    - `1` - Basic logging (INFO and WARNING messages)
    - `2` - Verbose logging (DEBUG, INFO, WARNING, ERROR messages)
-   
-   Logs are written to `.vim-chatgpt/debug.log` in your project directory. Use this for troubleshooting API issues, tool execution problems, or understanding plugin behavior.
 
- - **g:chat_gpt_suppress_display**: Internal flag to suppress response display in buffer. Default: 0 (show responses). Used internally by commands like `:GenerateCommit`, `:GptGenerateContext`, and `:GptGenerateSummary`. Not recommended for manual use.
+   Logs are written to `.vim-llm-agent/debug.log` in your project directory. Use this for troubleshooting API issues, tool execution problems, or understanding plugin behavior.
+
+ - **g:llm_agent_suppress_display**: Internal flag to suppress response display in buffer. Default: 0 (show responses). Used internally by commands like `:GenerateCommit`, `:GptGenerateContext`, and `:GptGenerateSummary`. Not recommended for manual use.
 
 ## AI Tools & Function Calling
 
@@ -197,7 +212,7 @@ The plugin includes a powerful tools framework that allows AI agents to interact
 
 ### Adaptive Planning Workflow
 
-When `g:chat_gpt_require_plan_approval` is enabled (default), the AI follows an **adaptive planning workflow** that adjusts based on results:
+When `g:llm_agent_require_plan_approval` is enabled (default), the AI follows an **adaptive planning workflow** that adjusts based on results:
 
 1. **Initial Plan Creation**: The AI analyzes your request and creates a step-by-step plan
 2. **User Approval**: You review and approve the initial plan
@@ -216,7 +231,7 @@ When `g:chat_gpt_require_plan_approval` is enabled (default), the AI follows an 
 
 **Disable plan approval** (tools execute immediately without confirmation):
 ```vim
-let g:chat_gpt_require_plan_approval = 0
+let g:llm_agent_require_plan_approval = 0
 ```
 
 ### Available Tools
@@ -310,7 +325,7 @@ The AI might:
 :Ask "Refactor the authentication module to use JWT tokens"
 ```
 
-With `g:chat_gpt_require_plan_approval` enabled, the workflow adapts to discoveries:
+With `g:llm_agent_require_plan_approval` enabled, the workflow adapts to discoveries:
 
 1. **AI presents initial plan:**
    ```
@@ -367,7 +382,7 @@ Tools are currently supported by:
 
 If you prefer the AI to not access your files, disable tools:
 ```vim
-let g:chat_gpt_enable_tools = 0
+let g:llm_agent_enable_tools = 0
 ```
 
 ## Usage
@@ -398,18 +413,18 @@ You can also use `GenerateCommit` command to generate a commit message for the c
 
 ## Conversation History
 
-When `g:chat_gpt_session_mode` is enabled (default), the plugin maintains conversation history to provide context across multiple interactions.
+When `g:llm_agent_session_mode` is enabled (default), the plugin maintains conversation history to provide context across multiple interactions.
 
 ### Storage Location
 
-Conversation history is automatically saved to `.vim-chatgpt/history.txt` in your project directory. This allows:
+Conversation history is automatically saved to `.vim-llm-agent/history.txt` in your project directory. This allows:
 - **Persistent conversations** across Vim sessions
 - **Project-specific history** - each project has its own conversation log
 - **Easy review** - you can view or edit the history file directly
 
 ### How It Works
 
-1. When you start a conversation, the plugin loads previous history from `.vim-chatgpt/history.txt`
+1. When you start a conversation, the plugin loads previous history from `.vim-llm-agent/history.txt`
 2. As you interact with the AI, responses are automatically appended to the history file
 3. The AI has access to previous conversation context (up to token limits)
 4. History is displayed in a Vim buffer and simultaneously saved to disk
@@ -418,17 +433,17 @@ Conversation history is automatically saved to `.vim-chatgpt/history.txt` in you
 
 **View history file:**
 ```vim
-:e .vim-chatgpt/history.txt
+:e .vim-llm-agent/history.txt
 ```
 
 **Clear history:**
 ```bash
-rm .vim-chatgpt/history.txt
+rm .vim-llm-agent/history.txt
 ```
 
 **Disable session mode** (no history saved):
 ```vim
-let g:chat_gpt_session_mode = 0
+let g:llm_agent_session_mode = 0
 ```
 
 ## Conversation Summary & Preferences
@@ -463,15 +478,15 @@ While summaries are generated automatically through compaction, you can manually
 ```
 
 The AI will:
-1. Read the conversation history from `.vim-chatgpt/history.txt`
+1. Read the conversation history from `.vim-llm-agent/history.txt`
 2. Compress content from last cutoff to current position (minus recent window)
 3. Identify key topics, decisions, and user preferences
 4. Merge with existing summary if present
-5. Update `.vim-chatgpt/summary.md` with new cutoff metadata
+5. Update `.vim-llm-agent/summary.md` with new cutoff metadata
 
 ### Summary File Format
 
-The summary file (`.vim-chatgpt/summary.md`) contains:
+The summary file (`.vim-llm-agent/summary.md`) contains:
 
 **Metadata Header:**
 ```markdown
@@ -498,17 +513,17 @@ The `cutoff_byte` metadata tracks which portion of history has been compressed, 
 **Configure compaction behavior:**
 ```vim
 " Trigger summary update after this many bytes of new conversation
-let g:chat_gpt_summary_compaction_size = 51200  " Default: 50KB
+let g:llm_agent_summary_compaction_size = 51200  " Default: 50KB
 
 " Keep this much recent history uncompressed
-let g:chat_gpt_recent_history_size = 20480  " Default: 20KB
+let g:llm_agent_recent_history_size = 20480  " Default: 20KB
 ```
 
 ### How It Works
 
 **Automatic Compaction:**
-1. New conversation gets written to `.vim-chatgpt/history.txt`
-2. When new content since last summary exceeds `g:chat_gpt_summary_compaction_size`:
+1. New conversation gets written to `.vim-llm-agent/history.txt`
+2. When new content since last summary exceeds `g:llm_agent_summary_compaction_size`:
    - AI reads existing summary + new content to compact
    - Generates updated summary including key topics, decisions, and preferences
    - Stores cutoff position in summary metadata
@@ -519,7 +534,7 @@ let g:chat_gpt_recent_history_size = 20480  " Default: 20KB
 
 **Manual Updates:**
 - Run `:GptGenerateSummary` anytime to manually trigger compaction
-- Edit `.vim-chatgpt/summary.md` to manually adjust preferences
+- Edit `.vim-llm-agent/summary.md` to manually adjust preferences
 - The summary is automatically loaded into every conversation's system message
 
 ### Benefits
@@ -552,7 +567,7 @@ Run this command to have the AI analyze your project and create a context file:
 The AI will:
 1. Explore your project using available tools (list directories, read README, package files, etc.)
 2. Analyze the project structure and technology stack
-3. Create a context summary at `.vim-chatgpt/context.md`
+3. Create a context summary at `.vim-llm-agent/context.md`
 
 ### Context File Structure
 
@@ -566,7 +581,7 @@ The generated context file contains:
 
 ### Manual Editing
 
-You can manually edit `.vim-chatgpt/context.md` to:
+You can manually edit `.vim-llm-agent/context.md` to:
 - Add specific details the AI should know
 - Highlight important patterns or conventions
 - Document architectural decisions
@@ -575,13 +590,13 @@ You can manually edit `.vim-chatgpt/context.md` to:
 ### Example Context File
 
 ```markdown
-# Project: vim-chatgpt
+# Project: vim-llm-agent
 
 ## Type
 Vim plugin
 
 ## Purpose
-Brings AI language model capabilities into Vim editor for code assistance
+Full-featured LLM agent for Vim with multi-provider support and autonomous tool execution
 
 ## Tech Stack
 - VimScript
@@ -599,18 +614,18 @@ Brings AI language model capabilities into Vim editor for code assistance
 ### How It Works
 
 When you start any AI conversation:
-1. Plugin checks for `.vim-chatgpt/context.md` in the current working directory
+1. Plugin checks for `.vim-llm-agent/context.md` in the current working directory
 2. If found, the context is loaded into the system message
 3. The AI has this context for every request in that project
 
 This means when you ask "What is this project?", the AI already knows!
 
-## .vim-chatgpt Directory Structure
+## .vim-llm-agent Directory Structure
 
-All plugin files are stored in the `.vim-chatgpt/` directory in your project root:
+All plugin files are stored in the `.vim-llm-agent/` directory in your project root:
 
 ```
-.vim-chatgpt/
+.vim-llm-agent/
 ├── context.md     # Project context (auto-generated or manual)
 ├── summary.md     # Conversation summary & user preferences
 └── history.txt    # Full conversation history
@@ -624,17 +639,17 @@ All plugin files are stored in the `.vim-chatgpt/` directory in your project roo
 **Manual management:**
 ```bash
 # View files
-ls .vim-chatgpt/
+ls .vim-llm-agent/
 
 # Edit context or summary
-vi .vim-chatgpt/context.md
-vi .vim-chatgpt/summary.md
+vi .vim-llm-agent/context.md
+vi .vim-llm-agent/summary.md
 
 # Clear history
-rm .vim-chatgpt/history.txt
+rm .vim-llm-agent/history.txt
 
 # Start fresh (removes all plugin data)
-rm -rf .vim-chatgpt/
+rm -rf .vim-llm-agent/
 ```
 
 ## Customization
@@ -644,7 +659,7 @@ rm -rf .vim-chatgpt/
 To introduce custom personas into the system context, simply define them in your `vimrc` file:
 
 ```vim
-let g:chat_gpt_custom_persona = {'neptune': 'You are an expert in all things Graph databases'}
+let g:llm_agent_custom_persona = {'neptune': 'You are an expert in all things Graph databases'}
 ```
 
 With the custom persona defined, you can switch to it using the following command:
@@ -663,12 +678,12 @@ let g:chat_persona='neptune'
 
 ### Commands
 
-You can add custom prompt templates using the `chat_gpt_custom_prompts` variable. This should be a dictionary mapping prompt keys to prompt templates.
+You can add custom prompt templates using the `llm_agent_custom_prompts` variable. This should be a dictionary mapping prompt keys to prompt templates.
 
 For example, to add a 'debug' prompt, you could do:
 
 ```vim
-let g:chat_gpt_custom_prompts = {'debug': 'Can you help me debug this code?'}
+let g:llm_agent_custom_prompts = {'debug': 'Can you help me debug this code?'}
 ```
 
 Afterwards, you can use the `Debug` command like any other command:
