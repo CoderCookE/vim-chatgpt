@@ -21,6 +21,7 @@ from chatgpt.utils import (
     clear_plan,
     load_plan,
     get_config,
+    parse_conversation_history,
 )
 from chatgpt.providers import create_provider
 from chatgpt.tools import get_tool_definitions, execute_tool
@@ -253,32 +254,22 @@ CRITICAL EXECUTION RULES:
                 # Decode with error handling for potential mid-character seek
                 history_content = history_bytes.decode("utf-8", errors="ignore")
 
-            # Parse history (format: \n\n\x01>>>Role:\x01\nmessage)
-            history_text = history_content.split("\n\n\x01>>>")
-            history_text.reverse()
-
-            # Parse all messages from recent history
-            parsed_messages = []
-            for line in history_text:
-                if ":\x01\n" in line:
-                    role, message = line.split(":\x01\n", 1)
-                    parsed_messages.append({"role": role.lower(), "content": message})
+            # Parse history using shared utility function
+            parsed_messages = parse_conversation_history(history_content)
 
             # Always include last 4 messages (to maintain conversation context even after compaction)
-            # Note: parsed_messages is in reverse chronological order (newest first) due to the reverse() above
+            # Note: parsed_messages is in chronological order (oldest first)
             min_messages = 4
             if len(parsed_messages) >= min_messages:
-                # Take first 4 messages (newest 4)
-                history = parsed_messages[:min_messages]
-                history.reverse()  # Reverse to chronological order (oldest first) for API
-                remaining_messages = parsed_messages[min_messages:]  # Older messages
+                # Take last 4 messages (newest 4)
+                history = parsed_messages[-min_messages:]
+                remaining_messages = parsed_messages[:-min_messages]  # Older messages
             else:
-                # Take all messages if less than 3
+                # Take all messages if less than min_messages
                 history = parsed_messages[:]
-                history.reverse()  # Reverse to chronological order (oldest first) for API
                 remaining_messages = []
 
-            # Calculate remaining token budget after including last 3 messages
+            # Calculate remaining token budget after including last min_messages
             token_count = (
                 token_limits.get(model, 100000)
                 - max_tokens
@@ -289,9 +280,9 @@ CRITICAL EXECUTION RULES:
                 token_count -= len(msg["content"])
 
             # Add older messages (from recent history window) until token limit
-            # remaining_messages is in reverse chronological order (newest first)
-            # We iterate through it and insert older messages at the beginning
-            for msg in remaining_messages:
+            # remaining_messages is in chronological order (oldest first)
+            # We iterate through it in reverse and insert newer messages at the end of history
+            for msg in reversed(remaining_messages):
                 token_count -= len(msg["content"])
                 if token_count > 0:
                     history.insert(

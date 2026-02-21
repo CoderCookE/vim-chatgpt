@@ -366,3 +366,60 @@ def format_plan_display(plan_type, explanation, tool_calls):
     content = "\n".join(content_parts)
 
     return "\n\n" + format_box(title, content, width=70) + "\n"
+
+
+def parse_conversation_history(history_text):
+    """
+    Parse conversation history text into structured messages.
+    
+    The history format is:
+    >>>User:
+    <user message>
+    
+    >>>Assistant:
+    <assistant response>
+    
+    Args:
+        history_text: Raw conversation history text
+        
+    Returns:
+        list: List of message dicts with 'role' and 'content' keys
+    """
+    messages = []
+    current_role = None
+    current_content = []
+    
+    for line in history_text.split('\n'):
+        if line.strip() == '\x01>>>User:\x01':
+            # Save previous message if exists
+            if current_role and current_content:
+                messages.append({
+                    'role': current_role,
+                    'content': '\n'.join(current_content).strip()
+                })
+            # Start new user message
+            current_role = 'user'
+            current_content = []
+        elif line.strip() == '\x01>>>Assistant:\x01':
+            # Save previous message if exists
+            if current_role and current_content:
+                messages.append({
+                    'role': current_role,
+                    'content': '\n'.join(current_content).strip()
+                })
+            # Start new assistant message
+            current_role = 'assistant'
+            current_content = []
+        else:
+            # Accumulate content for current message
+            if current_role:
+                current_content.append(line)
+    
+    # Save final message
+    if current_role and current_content:
+        messages.append({
+            'role': current_role,
+            'content': '\n'.join(current_content).strip()
+        })
+    
+    return messages

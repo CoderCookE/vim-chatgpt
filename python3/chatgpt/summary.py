@@ -9,7 +9,7 @@ import os
 import re
 import vim
 from datetime import datetime
-from chatgpt.utils import debug_log, save_plan, get_config
+from chatgpt.utils import debug_log, save_plan, get_config, parse_conversation_history
 from chatgpt.providers import create_provider
 
 
@@ -178,7 +178,15 @@ def generate_conversation_summary():
             debug_log("INFO: Found active plan in conversation, saving to plan.md")
             save_plan(extracted_plan)
 
-    # Build the prompt
+    # Parse the new conversation into messages
+    parsed_messages = parse_conversation_history(new_conversation)
+
+    debug_log(f"INFO: Parsed {len(parsed_messages)} messages from new conversation")
+
+    # Check if there's an active plan
+    has_active_plan = os.path.exists(plan_file)
+
+    # Build the prompt - will be added as final user message
     prompt = ""
 
     if old_cutoff > 0 and old_summary:
@@ -189,26 +197,13 @@ def generate_conversation_summary():
 
         prompt += "Here is the existing conversation summary:\n\n"
         prompt += f"```markdown\n{summary_content}\n```\n\n"
-        prompt += "And here is the new conversation to add to the summary:\n\n"
-        prompt += f"```\n{new_conversation}\n```\n\n"
-        prompt += "Please extend the existing summary with insights from the new conversation.\n"
+        prompt += "The conversation above is what we just had. "
+        prompt += "Please extend the existing summary with insights from this conversation.\n"
         prompt += "Keep all the existing content and only ADD new topics, preferences, and action items.\n"
         prompt += "Do NOT re-summarize or remove existing content."
     else:
-        prompt += "Here is a conversation history to summarize:\n\n"
-        prompt += f"```\n{new_conversation}\n```\n\n"
+        prompt += "The conversation above is what we just had. "
         prompt += "Please create a comprehensive summary of this conversation."
-
-    # Add format instructions
-    # Check if there's an active plan that needs to be preserved
-    plan_file = os.path.join(vim_dir, "plan.md")
-    has_active_plan = os.path.exists(plan_file)
-
-    prompt += "\n\nGenerate a summary using this format:"
-    prompt += "\n\n# Conversation Summary"
-    prompt += "\n\n## Key Topics Discussed"
-    prompt += "\n[Bullet points of main topics and decisions made]"
-    prompt += "\n\n## Important Information to Remember"
     prompt += "\n[Critical details, decisions, or context that should be retained]"
     prompt += "\n\n## User Preferences"
     prompt += "\n- Coding style preferences"
