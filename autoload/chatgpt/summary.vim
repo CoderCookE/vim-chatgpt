@@ -2,32 +2,24 @@
 " This file handles conversation summary generation and compaction
 
 " Extract cutoff byte position from summary metadata
+" Delegates to Python implementation
 function! s:get_summary_cutoff(project_dir) abort
-    " Use new directory name, but check for old one for backwards compatibility
-    let vim_dir = a:project_dir . '/.vim-llm-agent'
-    if !isdirectory(vim_dir)
-        let old_dir = a:project_dir . '/.vim-chatgpt'
-        if isdirectory(old_dir)
-            let vim_dir = old_dir
-        endif
-    endif
-    let summary_file = vim_dir . '/summary.md'
+    python3 << EOF
+import vim
+import sys
+import os
 
-    if !filereadable(summary_file)
-        return 0
-    endif
+plugin_dir = vim.eval('expand("<sfile>:p:h:h:h")')
+python_path = os.path.join(plugin_dir, 'python3')
+if python_path not in sys.path:
+    sys.path.insert(0, python_path)
 
-    let lines = readfile(summary_file, '', 10)
-    for line in lines
-        if line =~ 'cutoff_byte:'
-            let match = matchstr(line, 'cutoff_byte:\s*\zs\d\+')
-            if match != ''
-                return str2nr(match)
-            endif
-        endif
-    endfor
-
-    return 0
+from chatgpt.summary import get_summary_cutoff
+project_dir = vim.eval('a:project_dir')
+cutoff = get_summary_cutoff(project_dir)
+vim.command(f'let l:cutoff_result = {cutoff}')
+EOF
+    return l:cutoff_result
 endfunction
 
 " Check if summary needs updating based on history size
@@ -80,47 +72,19 @@ function! chatgpt#summary#check_and_update() abort
         endif
 
         let save_cwd = getcwd()
-        let save_session_mode = exists('g:llm_agent_session_mode') ? g:llm_agent_session_mode : (exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1)
-        let save_plan_approval = exists('g:llm_agent_require_plan_approval') ? g:llm_agent_require_plan_approval : (exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1)
-        let save_tool_approval = exists('g:llm_agent_require_tool_approval') ? g:llm_agent_require_tool_approval : (exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1)
-        let save_suppress_display = exists('g:llm_agent_suppress_display') ? g:llm_agent_suppress_display : (exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0)
-
         execute 'cd ' . fnameescape(project_dir)
-
-        let g:llm_agent_session_mode = 0
-        let g:llm_agent_require_plan_approval = 0
-        let g:llm_agent_require_tool_approval = 0
-        let g:llm_agent_suppress_display = 1
 
         call chatgpt#summary#generate(1)  " 1 = skip plan resume check (automatic compaction)
 
-        let g:llm_agent_session_mode = save_session_mode
-        let g:llm_agent_require_plan_approval = save_plan_approval
-        let g:llm_agent_require_tool_approval = save_tool_approval
-        let g:llm_agent_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     elseif !filereadable(summary_file) && file_size > 1024
         echo "No conversation summary found. Generating from history..."
 
         let save_cwd = getcwd()
-        let save_session_mode = exists('g:llm_agent_session_mode') ? g:llm_agent_session_mode : (exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1)
-        let save_plan_approval = exists('g:llm_agent_require_plan_approval') ? g:llm_agent_require_plan_approval : (exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1)
-        let save_tool_approval = exists('g:llm_agent_require_tool_approval') ? g:llm_agent_require_tool_approval : (exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1)
-        let save_suppress_display = exists('g:llm_agent_suppress_display') ? g:llm_agent_suppress_display : (exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0)
-
         execute 'cd ' . fnameescape(project_dir)
-
-        let g:llm_agent_session_mode = 0
-        let g:llm_agent_require_plan_approval = 0
-        let g:llm_agent_require_tool_approval = 0
-        let g:llm_agent_suppress_display = 1
 
         call chatgpt#summary#generate(1)  " 1 = skip plan resume check (automatic compaction)
 
-        let g:llm_agent_session_mode = save_session_mode
-        let g:llm_agent_require_plan_approval = save_plan_approval
-        let g:llm_agent_require_tool_approval = save_tool_approval
-        let g:llm_agent_suppress_display = save_suppress_display
         execute 'cd ' . fnameescape(save_cwd)
     endif
 endfunction

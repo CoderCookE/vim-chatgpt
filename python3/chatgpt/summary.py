@@ -8,8 +8,9 @@ the context window manageable while preserving important information.
 import os
 import re
 import vim
-from chatgpt.core import chat_gpt
-from chatgpt.utils import debug_log, save_plan
+from datetime import datetime
+from chatgpt.utils import debug_log, save_plan, get_config
+from chatgpt.providers import create_provider
 
 
 def extract_plan_from_conversation(conversation_text):
@@ -47,12 +48,19 @@ def get_summary_cutoff(project_dir):
     Extract cutoff byte position from summary metadata.
 
     Args:
-        project_dir: Project data directory path
+        project_dir: Project directory path (will check for .vim-llm-agent or .vim-chatgpt)
 
     Returns:
         int: Byte position where last summary ended
     """
-    summary_file = os.path.join(project_dir, "summary.md")
+    # Determine which vim directory to use (with fallback for backwards compatibility)
+    vim_dir = os.path.join(project_dir, ".vim-llm-agent")
+    if not os.path.isdir(vim_dir):
+        old_dir = os.path.join(project_dir, ".vim-chatgpt")
+        if os.path.isdir(old_dir):
+            vim_dir = old_dir
+
+    summary_file = os.path.join(vim_dir, "summary.md")
 
     if not os.path.exists(summary_file):
         return 0
@@ -89,12 +97,17 @@ def generate_conversation_summary():
     """
     debug_log("INFO: Starting conversation summary generation")
 
-    # Get project directory and file paths
+    # Get project directory and vim directory paths
     from chatgpt.utils import get_project_dir
 
-    project_dir = get_project_dir()
-    history_file = os.path.join(project_dir, "history.txt")
-    summary_file = os.path.join(project_dir, "summary.md")
+    # Get actual project directory (current working directory)
+    project_dir = os.getcwd()
+
+    # Get vim directory path (with fallback for backwards compatibility)
+    vim_dir = get_project_dir()
+
+    history_file = os.path.join(vim_dir, "history.txt")
+    summary_file = os.path.join(vim_dir, "summary.md")
 
     # Check if history exists
     if not os.path.exists(history_file):
@@ -157,7 +170,7 @@ def generate_conversation_summary():
         return
 
     # Extract and save any active plan from the conversation before summarizing
-    plan_file = os.path.join(project_dir, "plan.md")
+    plan_file = os.path.join(vim_dir, "plan.md")
     if not os.path.exists(plan_file):
         # Only extract if no plan file exists yet
         extracted_plan = extract_plan_from_conversation(new_conversation)
@@ -188,7 +201,7 @@ def generate_conversation_summary():
 
     # Add format instructions
     # Check if there's an active plan that needs to be preserved
-    plan_file = os.path.join(project_dir, "plan.md")
+    plan_file = os.path.join(vim_dir, "plan.md")
     has_active_plan = os.path.exists(plan_file)
 
     prompt += "\n\nGenerate a summary using this format:"
@@ -212,20 +225,67 @@ def generate_conversation_summary():
         prompt += "\n\nNOTE: If there was an active plan during this conversation, extract it and I will save it separately. "
         prompt += "Plans should NOT be included in the summary itself."
 
-    # IMPORTANT: Ask the AI to save the file using the create_file tool
-    # This ensures the metadata header gets added properly by the tool
-    # Use the specific directory path to avoid ambiguity
-    dir_name = os.path.basename(
-        project_dir
-    )  # Get just the directory name (.vim-llm-agent or .vim-chatgpt)
-    prompt += f"\n\nSave the summary to {dir_name}/summary.md using the create_file tool with overwrite=true."
-
     debug_log(
         f"INFO: Generating summary for {bytes_to_summarize} bytes of conversation"
     )
+    debug_log(f"DEBUG: Full summary prompt:\n{prompt}")
 
-    # Generate the summary using chat_gpt
-    # The AI will use the create_file tool to save it with proper metadata
-    chat_gpt(prompt)
+    # Call LLM provider directly (no history, no tools, no display)
+    provider_name = get_config("provider", "openai")
+    try:
+        provider = create_provider(provider_name)
+    except Exception as e:
+        debug_log(f"ERROR: Failed to create provider '{provider_name}': {str(e)}")
+        return
+
+    # Get parameters
+    max_tokens = int(get_config("max_tokens", "2000"))
+    temperature = float(get_config("temperature", "0.7"))
+    model = provider.get_model()
+
+    # Simple system message for summary generation
+    system_message = "You are a helpful assistant that generates concise, accurate summaries of conversations."
+
+    # Create messages without any history
+    try:
+        messages = provider.create_messages(system_message, [], prompt)
+    except Exception as e:
+        debug_log(f"ERROR: Failed to create messages: {str(e)}")
+        return
+
+    # Call provider and collect full response (no streaming display)
+    summary_content = ""
+    try:
+        for content, finish_reason, tool_calls in provider.stream_chat(
+            messages, model, temperature, max_tokens, tools=None
+        ):
+            if content:
+                summary_content += content
+            if finish_reason:
+                break
+
+        debug_log(f"INFO: Summary generation complete ({len(summary_content)} chars)")
+
+    except Exception as e:
+        debug_log(f"ERROR: Failed to generate summary: {str(e)}")
+        return
+
+    if not summary_content:
+        debug_log("ERROR: No summary content returned from LLM")
+        return
+
+    # Add metadata header with cutoff byte position and timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    metadata = f"<!-- Summary generated at: {timestamp} -->\n<!-- cutoff_byte: {new_cutoff} -->\n\n"
+    full_summary = metadata + summary_content.strip()
+
+    # Save the summary file
+    try:
+        with open(summary_file, "w", encoding="utf-8") as f:
+            f.write(full_summary)
+        debug_log(f"INFO: Summary saved to {summary_file}")
+    except Exception as e:
+        debug_log(f"ERROR: Failed to save summary: {str(e)}")
+        return
 
     debug_log("INFO: Summary generation complete")
