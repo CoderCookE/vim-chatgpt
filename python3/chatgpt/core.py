@@ -61,11 +61,16 @@ def is_plan_completed(response_text):
     return False
 
 
-def chat_gpt(prompt):
-    """Main chat function that handles conversation with AI providers"""
+def chat_gpt(prompt, silent=False):
+    """Main chat function that handles conversation with AI providers
+
+    Args:
+        prompt: The user's prompt/question
+        silent: If True, suppress all display output (for background operations)
+    """
 
     # Log minimal info for debugging
-    debug_log(f"INFO: chat_gpt called - prompt length: {len(prompt)}")
+    debug_log(f"INFO: chat_gpt called - prompt length: {len(prompt)}, silent={silent}")
 
     token_limits = {
         "gpt-3.5-turbo": 4097,
@@ -97,7 +102,8 @@ def chat_gpt(prompt):
     temperature = float(get_config("temperature", "0.7"))
     lang = get_config("lang", "None")
     resp = f" And respond in {lang}." if lang != "None" else ""
-    suppress_display = int(get_config("suppress_display", "0"))
+    # Use silent parameter if provided, otherwise check config
+    suppress_display = 1 if silent else int(get_config("suppress_display", "0"))
 
     # Get model from provider
     # Get model from provider
@@ -157,7 +163,8 @@ def chat_gpt(prompt):
         system_message += f"\n\n## Current Active Plan\n\nYou previously created and the user approved this plan. Continue executing it:\n\n{active_plan}"
 
     # Add planning instruction if tools are enabled and plan approval required
-    require_plan_approval = int(get_config("require_plan_approval", "1"))
+    # In silent mode, disable all approvals to run in background
+    require_plan_approval = 0 if silent else int(get_config("require_plan_approval", "1"))
     if enable_tools and provider.supports_tools():
         # Add tool calling capability instructions
         system_message += "\n\n## TOOL CALLING CAPABILITY\n\nYou have access to function/tool calling via the API. Tools are available through the native tool calling feature.\n\nIMPORTANT: When executing tools:\n- Use the API's tool/function calling feature (NOT text descriptions)\n- Do NOT write text that mimics tool execution like 'Success: git_status()'\n- Do NOT output text like 'Tool Execution' or 'Calling tool: X'\n- The system automatically handles and displays tool execution\n- Your job is to CALL the tools via the API, not describe them in text\n"
@@ -220,11 +227,12 @@ CRITICAL EXECUTION RULES:
         system_message += '\n## DIRECT EXECUTION MODE\n\n**CRITICAL INSTRUCTIONS:**\n- Plan approval is DISABLED\n- DO NOT present plans, goals, or explain what you will do\n- DO NOT write ANY text describing your actions\n- Your FIRST response must contain ONLY tool/function calls, ZERO text\n- Execute the user\'s request IMMEDIATELY using the appropriate tools\n- After tools complete, you may provide a brief summary of results\n\n**EXECUTION RULES:**\n- IMMEDIATELY call the required tools via the API\n- Do NOT output text like "Let me create..." or "I\'ll start by..."\n- The system handles all tool execution display\n- Just make the function calls and nothing else\n'
 
     # Session history management
+    # In silent mode, disable session to avoid chat window
     history = []
-    session_enabled = int(get_config("session_mode", "1")) == 1
+    session_enabled = False if silent else (int(get_config("session_mode", "1")) == 1)
     session_mode_val = get_config("session_mode", "1")
     debug_log(
-        f"DEBUG: session_enabled = {session_enabled}, g:chat_gpt_session_mode = {session_mode_val}"
+        f"DEBUG: session_enabled = {session_enabled}, g:chat_gpt_session_mode = {session_mode_val}, silent={silent}"
     )
 
     # Create project directory if it doesn't exist

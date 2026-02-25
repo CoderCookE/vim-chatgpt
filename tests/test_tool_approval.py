@@ -30,6 +30,66 @@ class TestToolApproval:
 
     @patch("chatgpt.tools.get_config")
     @patch("chatgpt.tools.vim")
+    def test_read_only_tools_dont_require_approval(self, mock_vim, mock_get_config):
+        """Read-only tools should never require approval"""
+        mock_get_config.return_value = "1"  # Approval enabled
+        mock_vim.eval = MagicMock()
+        mock_vim.command = MagicMock()
+
+        # Test various read-only tools
+        read_only_tools = [
+            ("get_working_directory", {}),
+            ("list_directory", {"path": "."}),
+            ("read_file", {"file_path": "README.md"}),
+            ("git_status", {}),
+            ("git_diff", {}),
+            ("git_log", {}),
+        ]
+
+        for tool_name, args in read_only_tools:
+            mock_vim.eval.reset_mock()
+            is_approved, msg = check_tool_approval(tool_name, args)
+
+            # Should be approved without prompting
+            assert is_approved is True
+            assert msg is None
+
+            # Should NOT have called vim.eval for confirmation
+            assert not any("inputlist" in str(call) for call in mock_vim.eval.call_args_list), \
+                f"Tool {tool_name} should not require approval"
+
+    @patch("chatgpt.tools.get_config")
+    @patch("chatgpt.tools.vim")
+    def test_plugin_internal_files_dont_require_approval(self, mock_vim, mock_get_config):
+        """Plugin-internal files (context.md, summary.md) should not require approval"""
+        mock_get_config.return_value = "1"  # Approval enabled
+        mock_vim.eval = MagicMock()
+        mock_vim.command = MagicMock()
+
+        # Test creating context.md and summary.md in plugin directories
+        internal_files = [
+            ("create_file", {"file_path": ".vim-chatgpt/context.md", "content": "test"}),
+            ("create_file", {"file_path": ".vim-llm-agent/context.md", "content": "test"}),
+            ("create_file", {"file_path": ".vim-chatgpt/summary.md", "content": "test"}),
+            ("create_file", {"file_path": ".vim-llm-agent/summary.md", "content": "test"}),
+            ("edit_file", {"file_path": ".vim-chatgpt/context.md", "old_content": "old", "new_content": "new"}),
+            ("edit_file", {"file_path": ".vim-llm-agent/summary.md", "old_content": "old", "new_content": "new"}),
+        ]
+
+        for tool_name, args in internal_files:
+            mock_vim.eval.reset_mock()
+            is_approved, msg = check_tool_approval(tool_name, args)
+
+            # Should be approved without prompting
+            assert is_approved is True
+            assert msg is None
+
+            # Should NOT have called vim.eval for confirmation
+            assert not any("inputlist" in str(call) for call in mock_vim.eval.call_args_list), \
+                f"Tool {tool_name} with {args['file_path']} should not require approval"
+
+    @patch("chatgpt.tools.get_config")
+    @patch("chatgpt.tools.vim")
     def test_approval_disabled_by_default(self, mock_vim, mock_get_config):
         """When approval is disabled (default), tools execute without prompting"""
         mock_get_config.return_value = "0"  # Disabled
@@ -41,6 +101,72 @@ class TestToolApproval:
         # Should not have called vim.eval for confirmation
         assert not any("inputlist" in str(call) for call in mock_vim.eval.call_args_list)
         assert "Current working directory:" in result
+
+    @patch("chatgpt.tools.get_config")
+    @patch("chatgpt.tools.vim")
+    def test_non_plugin_files_still_require_approval(self, mock_vim, mock_get_config):
+        """Files with similar names outside plugin directories should still require approval"""
+        mock_get_config.return_value = "1"  # Approval enabled
+        mock_vim.eval = MagicMock(return_value="2")  # User selects "Always Allow"
+        mock_vim.command = MagicMock()
+
+        # Test files that look similar but are NOT in plugin directories
+        non_plugin_files = [
+            ("create_file", {"file_path": "context.md", "content": "test"}),
+            ("create_file", {"file_path": "summary.md", "content": "test"}),
+            ("create_file", {"file_path": "docs/context.md", "content": "test"}),
+            ("create_file", {"file_path": "some_dir/summary.md", "content": "test"}),
+        ]
+
+        for tool_name, args in non_plugin_files:
+            mock_vim.eval.reset_mock()
+            is_approved, msg = check_tool_approval(tool_name, args)
+
+            # Should be approved after prompting
+            assert is_approved is True
+
+            # Should have called vim.eval for confirmation
+            inputlist_calls = [
+                c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+            ]
+            assert len(inputlist_calls) > 0, \
+                f"Tool {tool_name} with {args['file_path']} should require approval"
+
+            # Clear the approval cache for next iteration
+            clear_tool_approvals()
+
+    @patch("chatgpt.tools.get_config")
+    @patch("chatgpt.tools.vim")
+    def test_write_tools_require_approval(self, mock_vim, mock_get_config):
+        """Write/modify tools should still require approval"""
+        mock_get_config.return_value = "1"  # Approval enabled
+        mock_vim.eval = MagicMock(return_value="2")  # User selects "Always Allow"
+        mock_vim.command = MagicMock()
+
+        # Test various write tools
+        write_tools = [
+            ("create_file", {"file_path": "test.txt", "content": "test"}),
+            ("edit_file", {"file_path": "test.txt", "old_content": "old", "new_content": "new"}),
+            ("git_add", {"files": ["."]}),
+            ("git_commit", {"message": "test"}),
+        ]
+
+        for tool_name, args in write_tools:
+            mock_vim.eval.reset_mock()
+            is_approved, msg = check_tool_approval(tool_name, args)
+
+            # Should be approved after prompting
+            assert is_approved is True
+
+            # Should have called vim.eval for confirmation
+            inputlist_calls = [
+                c for c in mock_vim.eval.call_args_list if "inputlist" in str(c)
+            ]
+            assert len(inputlist_calls) > 0, \
+                f"Tool {tool_name} should require approval"
+
+            # Clear the approval cache for next iteration
+            clear_tool_approvals()
 
     @patch("chatgpt.tools.get_config")
     @patch("chatgpt.tools.vim")
@@ -131,11 +257,11 @@ class TestToolApproval:
         mock_vim.eval = MagicMock(return_value="2")  # User selects "Always Allow"
         mock_vim.command = MagicMock()
 
-        # Execute tool - should prompt and succeed
-        result = execute_tool("get_working_directory", {})
+        # Execute a write tool - should prompt and succeed
+        result = execute_tool("git_reset", {"files": []})
 
         # Should have executed successfully
-        assert "Current working directory:" in result
+        assert "Successfully unstaged" in result or "Git error" in result
 
         # Should have prompted for approval using inputlist
         inputlist_calls = [
@@ -151,8 +277,8 @@ class TestToolApproval:
         mock_vim.eval = MagicMock(return_value="3")  # User selects "Deny"
         mock_vim.command = MagicMock()
 
-        # Execute tool - should be blocked
-        result = execute_tool("get_working_directory", {})
+        # Execute a write tool - should be blocked
+        result = execute_tool("git_reset", {"files": []})
 
         # Should be blocked
         assert "Tool execution blocked" in result or "denied by user" in result
@@ -200,9 +326,9 @@ class TestToolApproval:
         mock_vim.eval = MagicMock(return_value="2")  # Always Allow
         mock_vim.command = MagicMock()
 
-        # Execute with specific arguments
+        # Execute with specific arguments - use a write tool
         check_tool_approval(
-            "read_file", {"file_path": "/tmp/test.txt", "max_lines": 100}
+            "create_file", {"file_path": "/tmp/test.txt", "content": "test"}
         )
 
         # Check that inputlist was called with arguments in the message
@@ -213,7 +339,7 @@ class TestToolApproval:
 
         # The call should contain the tool name and arguments
         call_str = str(inputlist_calls[0])
-        assert "read_file" in call_str
+        assert "create_file" in call_str
         assert "file_path" in call_str or "Arguments" in call_str
 
 

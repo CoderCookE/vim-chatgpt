@@ -477,10 +477,46 @@ def check_tool_approval(tool_name, arguments):
     """
     Check if tool is approved for execution. Prompts user on first use.
 
+    Read-only tools (viewing files, git status, etc.) don't require approval.
+    Write operations (creating/editing files, git commits, etc.) require approval.
+    Special exception: context.md and summary.md in .vim-chatgpt/.vim-llm-agent directories
+    don't require approval as they're part of the plugin's internal operation.
+
     Returns:
         tuple: (is_approved: bool, message: str or None)
     """
     global _approved_tools
+
+    # Read-only tools that don't require approval
+    READ_ONLY_TOOLS = {
+        "get_working_directory",
+        "list_directory",
+        "find_in_file",
+        "find_file_in_project",
+        "read_file",
+        "open_file",  # Just opens file in Vim, doesn't modify
+        "git_status",
+        "git_diff",
+        "git_log",
+        "git_show",
+        "git_branch",
+    }
+
+    # Read-only tools never require approval
+    if tool_name in READ_ONLY_TOOLS:
+        return (True, None)
+
+    # Special handling for plugin-internal files (context.md and summary.md)
+    # These are created as part of the plugin's normal operation and don't need approval
+    if tool_name in ("create_file", "edit_file"):
+        file_path = arguments.get("file_path", "")
+        if file_path and (
+            file_path.endswith(".vim-chatgpt/context.md")
+            or file_path.endswith(".vim-llm-agent/context.md")
+            or file_path.endswith(".vim-chatgpt/summary.md")
+            or file_path.endswith(".vim-llm-agent/summary.md")
+        ):
+            return (True, None)
 
     # Check if tool approval is enabled (enabled by default for security)
     require_approval = get_config("require_tool_approval", "1")

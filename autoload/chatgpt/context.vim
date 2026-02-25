@@ -51,33 +51,40 @@ function! chatgpt#context#check_and_generate() abort
     endif
 
     if should_generate
-        " Save current settings and directory
+        " Save current directory
         let save_cwd = getcwd()
-        let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
-        let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
-        let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 1
-        let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
-
         execute 'cd ' . fnameescape(project_dir)
 
-        " Disable session mode, plan approval, tool approval, and suppress display for auto-generation
-        let g:chat_gpt_session_mode = 0
-        let g:chat_gpt_require_plan_approval = 0
-        let g:chat_gpt_require_tool_approval = 0
-        let g:chat_gpt_suppress_display = 1
+        " Use silent generation for auto-generation (no output, runs in background)
+        call chatgpt#context#generate_silent()
 
-        call chatgpt#context#generate()
-
-        " Restore settings and directory
-        let g:chat_gpt_session_mode = save_session_mode
-        let g:chat_gpt_require_plan_approval = save_plan_approval
-        let g:chat_gpt_require_tool_approval = save_tool_approval
-        let g:chat_gpt_suppress_display = save_suppress_display
+        " Restore directory
         execute 'cd ' . fnameescape(save_cwd)
     endif
 endfunction
 
-" Generate project context
+" Generate project context (silent mode for auto-generation)
+function! chatgpt#context#generate_silent() abort
+  " Call Python context generation directly
+  python3 << EOF
+import vim
+import sys
+import os
+
+# Add python3/chatgpt to Python path
+plugin_dir = vim.eval('expand("<sfile>:p:h:h")')
+python_path = os.path.join(plugin_dir, 'python3')
+if python_path not in sys.path:
+    sys.path.insert(0, python_path)
+
+from chatgpt.context import generate_project_context
+
+# Generate context (will save to .vim-llm-agent/context.md automatically)
+generate_project_context()
+EOF
+endfunction
+
+" Generate project context (interactive mode with messages)
 function! chatgpt#context#generate() abort
   " Determine which directory to use (new .vim-llm-agent or old .vim-chatgpt for backwards compatibility)
   let project_dir = getcwd()
@@ -90,44 +97,25 @@ function! chatgpt#context#generate() abort
     endif
   endif
 
-  let prompt = 'Please analyze this project and create a concise project context summary. Use the available tools to:'
-  let prompt .= "\n\n1. Get the working directory"
-  let prompt .= "\n2. List the root directory contents"
-  let prompt .= "\n3. Look for README files, package.json, requirements.txt, Cargo.toml, go.mod, pom.xml, or other project metadata files"
-  let prompt .= "\n4. Read key configuration/metadata files to understand the project"
-  let prompt .= "\n\nThen write a summary in this format:"
-  let prompt .= "\n\n# Project: [Name]"
-  let prompt .= "\n\n## Type"
-  let prompt .= "\n[e.g., Python web application, JavaScript library, Rust CLI tool, etc.]"
-  let prompt .= "\n\n## Purpose"
-  let prompt .= "\n[Brief description of what this project does]"
-  let prompt .= "\n\n## Tech Stack"
-  let prompt .= "\n[Key technologies, frameworks, and dependencies]"
-  let prompt .= "\n\n## Structure"
-  let prompt .= "\n[Brief overview of directory structure and key files]"
-  let prompt .= "\n\n## Key Files"
-  let prompt .= "\n[List important entry points, config files, etc.]"
-  let prompt .= "\n\nSave this context to " . dir_name . "/context.md so I understand this project in future conversations."
-  let prompt .= "\n\nImportant: Actually use the create_file tool to save the context to " . dir_name . "/context.md"
-
-  " Use session mode 0 for one-time response
-  let save_session_mode = exists('g:chat_gpt_session_mode') ? g:chat_gpt_session_mode : 1
-  let save_plan_approval = exists('g:chat_gpt_require_plan_approval') ? g:chat_gpt_require_plan_approval : 1
-  let save_tool_approval = exists('g:chat_gpt_require_tool_approval') ? g:chat_gpt_require_tool_approval : 0
-  let save_suppress_display = exists('g:chat_gpt_suppress_display') ? g:chat_gpt_suppress_display : 0
-  let g:chat_gpt_session_mode = 0
-  let g:chat_gpt_require_plan_approval = 0
-  let g:chat_gpt_require_tool_approval = 0
-  let g:chat_gpt_suppress_display = 1
-
   echo "Generating project context... (this will use AI tools to explore your project)"
-  call chatgpt#chat(prompt)
 
-  " Restore settings
-  let g:chat_gpt_session_mode = save_session_mode
-  let g:chat_gpt_require_plan_approval = save_plan_approval
-  let g:chat_gpt_require_tool_approval = save_tool_approval
-  let g:chat_gpt_suppress_display = save_suppress_display
+  " Call Python context generation directly
+  python3 << EOF
+import vim
+import sys
+import os
+
+# Add python3/chatgpt to Python path
+plugin_dir = vim.eval('expand("<sfile>:p:h:h")')
+python_path = os.path.join(plugin_dir, 'python3')
+if python_path not in sys.path:
+    sys.path.insert(0, python_path)
+
+from chatgpt.context import generate_project_context
+
+# Generate context (will save to .vim-llm-agent/context.md automatically)
+generate_project_context()
+EOF
 
   echo "\nProject context generated at " . dir_name . "/context.md"
   echo "You can edit this file to customize the project context."
